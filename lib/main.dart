@@ -1,17 +1,19 @@
+
 import 'package:flutter/material.dart';
+import 'api_service.dart';
 
 void main() {
-  runApp(const SwapSkillApp());
+  runApp(const SkillSwapApp());
 }
 
-class SwapSkillApp extends StatelessWidget {
-  const SwapSkillApp({super.key});
+class SkillSwapApp extends StatelessWidget {
+  const SkillSwapApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'SwapSkill',
+      title: 'SkillSwap',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.indigo,
@@ -44,7 +46,7 @@ class WelcomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               const Text(
-                'SwapSkill',
+                'SkillSwap',
                 style: TextStyle(
                   fontSize: 36,
                   fontWeight: FontWeight.bold,
@@ -62,7 +64,6 @@ class WelcomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 50),
 
-              // LOGIN BUTTON
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -71,7 +72,8 @@ class WelcomeScreen extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const LoginScreen(),
+                        builder: (context) =>
+                            const LoginScreen(),
                       ),
                     );
                   },
@@ -84,7 +86,6 @@ class WelcomeScreen extends StatelessWidget {
 
               const SizedBox(height: 15),
 
-              // CREATE ACCOUNT BUTTON
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -93,7 +94,8 @@ class WelcomeScreen extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const RegisterScreen(),
+                        builder: (context) =>
+                            const RegisterScreen(),
                       ),
                     );
                   },
@@ -113,8 +115,84 @@ class WelcomeScreen extends StatelessWidget {
 
 // ==================== LOGIN SCREEN ====================
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() =>
+      _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+
+  bool isLoading = false;
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> loginUser() async {
+    final email = emailController.text.trim();
+    final password = passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please enter email and password.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final data = await ApiService.login(
+        email: email,
+        password: password,
+      );
+
+      if (!mounted) return;
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => HomeScreen(
+            name: (data['full_name'] ?? email).toString(),
+            email: email,
+            teachSkill: 'Not added yet',
+            learnSkill: 'Not added yet',
+          ),
+        ),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Login failed: ${e.toString().replaceFirst('Exception: ', '')}',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -135,6 +213,8 @@ class LoginScreen extends StatelessWidget {
             const SizedBox(height: 25),
 
             TextField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
               decoration: InputDecoration(
                 labelText: 'Email',
                 prefixIcon: const Icon(Icons.email),
@@ -147,6 +227,7 @@ class LoginScreen extends StatelessWidget {
             const SizedBox(height: 15),
 
             TextField(
+              controller: passwordController,
               obscureText: true,
               decoration: InputDecoration(
                 labelText: 'Password',
@@ -163,23 +244,19 @@ class LoginScreen extends StatelessWidget {
               width: double.infinity,
               height: 52,
               child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const HomeScreen(
-                        name: 'SwapSkill User',
-                        email: 'user@example.com',
-                        teachSkill: 'Not added yet',
-                        learnSkill: 'Not added yet',
+                onPressed: isLoading ? null : loginUser,
+                child: isLoading
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text(
+                        'Login',
+                        style: TextStyle(fontSize: 18),
                       ),
-                    ),
-                  );
-                },
-                child: const Text(
-                  'Login',
-                  style: TextStyle(fontSize: 18),
-                ),
               ),
             ),
 
@@ -190,7 +267,8 @@ class LoginScreen extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const RegisterScreen(),
+                    builder: (context) =>
+                        const RegisterScreen(),
                   ),
                 );
               },
@@ -211,21 +289,24 @@ class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
   @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
+  State<RegisterScreen> createState() =>
+      _RegisterScreenState();
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final TextEditingController nameController = TextEditingController();
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController passwordController = TextEditingController();
-  final TextEditingController teachSkillController =
-      TextEditingController();
-  final TextEditingController learnSkillController =
-      TextEditingController();
+  final nameController = TextEditingController();
+  final usernameController = TextEditingController();
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+  final teachSkillController = TextEditingController();
+  final learnSkillController = TextEditingController();
+
+  bool isLoading = false;
 
   @override
   void dispose() {
     nameController.dispose();
+    usernameController.dispose();
     emailController.dispose();
     passwordController.dispose();
     teachSkillController.dispose();
@@ -233,15 +314,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  void registerUser() {
+  Future<void> registerUser() async {
     final name = nameController.text.trim();
+    final username = usernameController.text.trim();
     final email = emailController.text.trim();
-    final password = passwordController.text.trim();
+    final password = passwordController.text;
     final teachSkill = teachSkillController.text.trim();
     final learnSkill = learnSkillController.text.trim();
 
-    // Basic validation
     if (name.isEmpty ||
+        username.isEmpty ||
         email.isEmpty ||
         password.isEmpty ||
         teachSkill.isEmpty ||
@@ -254,19 +336,77 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    // For now, data is passed to the Home/Profile screen.
-    // No database or real authentication yet.
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => HomeScreen(
-          name: name,
-          email: email,
-          teachSkill: teachSkill,
-          learnSkill: learnSkill,
+    if (!email.contains('@') || !email.contains('.')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid email.'),
         ),
-      ),
-    );
+      );
+      return;
+    }
+
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Password must be at least 6 characters.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      await ApiService.register(
+        uniqueUsername: username,
+        email: email,
+        password: password,
+        fullName: name,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Account created successfully!',
+          ),
+        ),
+      );
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => HomeScreen(
+            name: name,
+            email: email,
+            teachSkill: teachSkill,
+            learnSkill: learnSkill,
+          ),
+        ),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Registration failed: ${e.toString().replaceFirst('Exception: ', '')}',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -289,7 +429,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
             const SizedBox(height: 25),
 
-            // FULL NAME
             TextField(
               controller: nameController,
               decoration: InputDecoration(
@@ -303,7 +442,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
             const SizedBox(height: 15),
 
-            // EMAIL
+            TextField(
+              controller: usernameController,
+              decoration: InputDecoration(
+                labelText: 'Unique Username',
+                hintText: 'Example: sanjida123',
+                prefixIcon: const Icon(Icons.alternate_email),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 15),
+
             TextField(
               controller: emailController,
               keyboardType: TextInputType.emailAddress,
@@ -318,7 +470,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
             const SizedBox(height: 15),
 
-            // PASSWORD
             TextField(
               controller: passwordController,
               obscureText: true,
@@ -333,7 +484,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
             const SizedBox(height: 15),
 
-            // SKILL TO TEACH
             TextField(
               controller: teachSkillController,
               decoration: InputDecoration(
@@ -348,7 +498,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
             const SizedBox(height: 15),
 
-            // SKILL TO LEARN
             TextField(
               controller: learnSkillController,
               decoration: InputDecoration(
@@ -363,16 +512,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
             const SizedBox(height: 25),
 
-            // REGISTER BUTTON
             SizedBox(
               width: double.infinity,
               height: 52,
               child: ElevatedButton(
-                onPressed: registerUser,
-                child: const Text(
-                  'Register',
-                  style: TextStyle(fontSize: 18),
-                ),
+                onPressed: isLoading ? null : registerUser,
+                child: isLoading
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text(
+                        'Register',
+                        style: TextStyle(fontSize: 18),
+                      ),
               ),
             ),
           ],
@@ -402,10 +558,9 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('SwapSkill'),
+        title: const Text('SkillSwap'),
         centerTitle: true,
       ),
-
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -431,7 +586,6 @@ class HomeScreen extends StatelessWidget {
 
             const SizedBox(height: 30),
 
-            // FIND A SKILL
             Card(
               child: ListTile(
                 leading: const Icon(
@@ -443,16 +597,16 @@ class HomeScreen extends StatelessWidget {
                   'Search for people who can teach you.',
                 ),
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Skill search will be added next.'),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SearchScreen(),
                     ),
                   );
                 },
               ),
             ),
 
-            // MY SKILLS
             Card(
               child: ListTile(
                 leading: const Icon(
@@ -461,21 +615,12 @@ class HomeScreen extends StatelessWidget {
                 ),
                 title: const Text('My Skills'),
                 subtitle: Text(
-                  'I can teach: $teachSkill',
+                  'I can teach: $teachSkill\n'
+                  'I want to learn: $learnSkill',
                 ),
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'You can teach: $teachSkill',
-                      ),
-                    ),
-                  );
-                },
               ),
             ),
 
-            // MY PROFILE
             Card(
               child: ListTile(
                 leading: const Icon(
@@ -504,7 +649,6 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
       ),
-
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 0,
         items: const [
@@ -548,14 +692,12 @@ class ProfileScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('My Profile'),
       ),
-
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
             const SizedBox(height: 15),
 
-            // PROFILE ICON
             const CircleAvatar(
               radius: 50,
               child: Icon(
@@ -566,7 +708,6 @@ class ProfileScreen extends StatelessWidget {
 
             const SizedBox(height: 20),
 
-            // NAME
             Text(
               name,
               style: const TextStyle(
@@ -577,7 +718,6 @@ class ProfileScreen extends StatelessWidget {
 
             const SizedBox(height: 5),
 
-            // EMAIL
             Text(
               email,
               style: const TextStyle(
@@ -588,7 +728,6 @@ class ProfileScreen extends StatelessWidget {
 
             const SizedBox(height: 30),
 
-            // PERSONAL INFORMATION
             Card(
               child: ListTile(
                 leading: const Icon(
@@ -615,7 +754,6 @@ class ProfileScreen extends StatelessWidget {
 
             const SizedBox(height: 10),
 
-            // TEACH SKILL
             Card(
               child: ListTile(
                 leading: const Icon(
@@ -629,7 +767,6 @@ class ProfileScreen extends StatelessWidget {
 
             const SizedBox(height: 10),
 
-            // LEARN SKILL
             Card(
               child: ListTile(
                 leading: const Icon(
@@ -640,6 +777,93 @@ class ProfileScreen extends StatelessWidget {
                 subtitle: Text(learnSkill),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+// ==================== SEARCH SCREEN ====================
+
+
+class SearchScreen extends StatefulWidget {
+  const SearchScreen({super.key});
+
+  @override
+  State<SearchScreen> createState() => _SearchScreenState();
+}
+
+class _SearchScreenState extends State<SearchScreen> {
+  final TextEditingController _searchController =
+      TextEditingController();
+
+  String searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Find a Skill'),
+        centerTitle: true,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                labelText: 'Search skills',
+                hintText: 'e.g. Python, English, Flutter',
+                prefixIcon: const Icon(Icons.search),
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() {
+                      searchQuery = '';
+                    });
+                  },
+                ),
+              ),
+              onSubmitted: (value) {
+                setState(() {
+                  searchQuery = value.trim();
+                });
+              },
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    searchQuery =
+                        _searchController.text.trim();
+                  });
+                },
+                icon: const Icon(Icons.search),
+                label: const Text('Search'),
+              ),
+            ),
+            const SizedBox(height: 20),
+            if (searchQuery.isNotEmpty)
+              Text(
+                'Searching for: $searchQuery',
+                style: const TextStyle(fontSize: 18),
+              )
+            else
+              const Text(
+                'Enter a skill to start searching.',
+                style: TextStyle(fontSize: 16),
+              ),
           ],
         ),
       ),
