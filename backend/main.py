@@ -224,3 +224,35 @@ def login_user(data: LoginRequest):
             "is_verified": user["is_verified"]
         }
     }
+# ---------------- FIND A SKILL ----------------
+
+@app.get("/skills")
+def find_skills(search: str = ""):
+    db = get_db_connection()
+    cursor = db.cursor(dictionary=True)
+
+    try:
+        cursor.execute("""
+            SELECT
+                s.skill_id,
+                s.name,
+                s.description,
+                s.category_id,
+                sc.name AS category_name
+            FROM skills s
+            LEFT JOIN skill_categories sc
+                ON s.category_id = sc.category_id
+            WHERE s.name LIKE %s
+            ORDER BY s.name ASC
+        """, (f"%{search}%",))
+
+        skills = cursor.fetchall()
+
+        return {
+            "success": True,
+            "count": len(skills),
+            "skills": skills
+        }
+    finally:
+        cursor.close()
+        db.close()
