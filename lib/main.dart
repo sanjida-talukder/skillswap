@@ -163,20 +163,23 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (context) => HomeScreen(
-                                  name: (data['user']['full_name'] ?? email).toString(),
-                                  email: (data['user']['email'] ?? email).toString(),
-                                  teachSkill:
-                                      (data['user']['teach_skill'] ?? 'Not added yet').toString(),
-                                  learnSkill:
-                                      (data['user']['learn_skill'] ?? 'Not added yet').toString(),
-                                )
-        ),
-        (route) => false,
-      );
+
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (context) => HomeScreen(
+                  userId: (data['user']['user_id'] ?? '').toString(),
+                  name: (data['user']['full_name'] ?? email).toString(),
+                  email: (data['user']['email'] ?? email).toString(),
+                  teachSkill:
+                      (data['user']['teach_skill'] ?? 'Not added yet').toString(),
+                  learnSkill:
+                      (data['user']['learn_skill'] ?? 'Not added yet').toString(),
+                ),
+              ),
+              (route) => false,
+            );
+
     } catch (e) {
       if (!mounted) return;
 
@@ -364,7 +367,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       
-await ApiService.register(
+final data = await ApiService.register(
   uniqueUsername: username,
   email: email,
   password: password,
@@ -384,21 +387,19 @@ await ApiService.register(
         ),
       );
 
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-         
-
-builder: (context) => HomeScreen(
-  name: name,
-  email: email,
-  teachSkill: teachSkill,
-  learnSkill: learnSkill,
-),
-
-        ),
-        (route) => false,
-      );
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (context) => HomeScreen(
+                  userId: (data['user_id'] ?? '').toString(),
+                  name: name,
+                  email: email,
+                  teachSkill: teachSkill,
+                  learnSkill: learnSkill,
+                ),
+              ),
+              (route) => false,
+            );
     } catch (e) {
       if (!mounted) return;
 
@@ -549,7 +550,9 @@ builder: (context) => HomeScreen(
 
 // ==================== HOME SCREEN ====================
 
+
 class HomeScreen extends StatelessWidget {
+  final String userId;
   final String name;
   final String email;
   final String teachSkill;
@@ -557,6 +560,7 @@ class HomeScreen extends StatelessWidget {
 
   const HomeScreen({
     super.key,
+    required this.userId,
     required this.name,
     required this.email,
     required this.teachSkill,
@@ -627,18 +631,35 @@ class HomeScreen extends StatelessWidget {
                               'I can teach: $teachSkill\n'
                               'I want to learn: $learnSkill',
                             ),
-                            onTap: () {
-                              Navigator.push(
+
+                            onTap: () async {
+                              final result = await Navigator.push<Map<String, String>>(
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => MySkillsScreen(
-                                             teachSkill: teachSkill,
-                                             learnSkill: learnSkill,
-                                 ),
-
+                                    userId: userId,
+                                    teachSkill: teachSkill,
+                                    learnSkill: learnSkill,
+                                  ),
                                 ),
                               );
+
+                              if (result != null && context.mounted) {
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => HomeScreen(
+                                      userId: userId,
+                                      name: name,
+                                      email: email,
+                                      teachSkill: result['teachSkill'] ?? teachSkill,
+                                      learnSkill: result['learnSkill'] ?? learnSkill,
+                                    ),
+                                  ),
+                                );
+                              }
                             },
+
                           ),
                         ),
 
@@ -690,15 +711,87 @@ class HomeScreen extends StatelessWidget {
     );
   }
 }
-class MySkillsScreen extends StatelessWidget {
+
+class MySkillsScreen extends StatefulWidget {
+  final String userId;
   final String teachSkill;
   final String learnSkill;
 
   const MySkillsScreen({
     super.key,
+    required this.userId,
     required this.teachSkill,
     required this.learnSkill,
   });
+
+  @override
+  State<MySkillsScreen> createState() => _MySkillsScreenState();
+}
+
+class _MySkillsScreenState extends State<MySkillsScreen> {
+  late final TextEditingController teachController;
+  late final TextEditingController learnController;
+  bool isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    teachController = TextEditingController(text: widget.teachSkill);
+    learnController = TextEditingController(text: widget.learnSkill);
+  }
+
+  @override
+  void dispose() {
+    teachController.dispose();
+    learnController.dispose();
+    super.dispose();
+  }
+
+  Future<void> saveSkills() async {
+    if (widget.userId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('User ID missing. Please login again.')),
+      );
+      return;
+    }
+
+    if (teachController.text.trim().isEmpty ||
+        learnController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter both skills.')),
+      );
+      return;
+    }
+
+    setState(() => isSaving = true);
+
+    try {
+      await ApiService.updateSkills(
+        userId: widget.userId,
+        teachSkill: teachController.text.trim(),
+        learnSkill: learnController.text.trim(),
+      );
+
+            if (!mounted) return;
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Skills saved successfully!')),
+            );
+
+            Navigator.pop(context, {
+              'teachSkill': teachController.text.trim(),
+              'learnSkill': learnController.text.trim(),
+            });
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Save failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => isSaving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -713,40 +806,38 @@ class MySkillsScreen extends StatelessWidget {
         children: [
           const Text(
             'Your Skill Journey',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 20),
-          Card(
-            child: ListTile(
-              leading: const Icon(
-                Icons.school,
-                color: Colors.indigo,
-                size: 35,
-              ),
-              title: const Text('Skills I Can Teach'),
-              subtitle: Text(teachSkill),
+          TextField(
+            controller: teachController,
+            decoration: const InputDecoration(
+              labelText: 'Skills I Can Teach',
+              prefixIcon: Icon(Icons.school),
+              border: OutlineInputBorder(),
             ),
           ),
-          const SizedBox(height: 12),
-          Card(
-            child: ListTile(
-              leading: const Icon(
-                Icons.menu_book,
-                color: Colors.deepOrange,
-                size: 35,
-              ),
-              title: const Text('Skills I Want to Learn'),
-              subtitle: Text(learnSkill),
+          const SizedBox(height: 16),
+          TextField(
+            controller: learnController,
+            decoration: const InputDecoration(
+              labelText: 'Skills I Want to Learn',
+              prefixIcon: Icon(Icons.menu_book),
+              border: OutlineInputBorder(),
             ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: isSaving ? null : saveSkills,
+            icon: const Icon(Icons.save),
+            label: Text(isSaving ? 'Saving...' : 'Save Skills'),
           ),
         ],
       ),
     );
   }
 }
+
 
 // ==================== PROFILE SCREEN ====================
 // ==================== PROFILE SCREEN ====================

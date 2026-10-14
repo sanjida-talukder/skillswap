@@ -220,10 +220,10 @@ def register_user(user: UserCreate):
         db.commit()
 
         return {
-            "success": True,
-            "message": "Registration successful"
-        }
-
+    "success": True,
+    "message": "Registration successful",
+    "user_id": user_id
+}
     except Exception:
         db.rollback()
         raise
@@ -348,6 +348,128 @@ def find_skills(search: str = ""):
             "count": len(skills),
             "skills": skills
         }
+    finally:
+        cursor.close()
+        db.close()
+
+# ---------------- ADD / EDIT USER SKILLS ----------------
+
+class UpdateSkillsRequest(BaseModel):
+    user_id: str
+    teach_skill: str
+    learn_skill: str
+
+
+@app.put("/user-skills")
+def update_user_skills(data: UpdateSkillsRequest):
+    teach_skill = data.teach_skill.strip()
+    learn_skill = data.learn_skill.strip()
+
+    if not teach_skill or not learn_skill:
+        raise HTTPException(
+            status_code=400,
+            detail="Both skills are required"
+        )
+
+    db = get_db_connection()
+    cursor = db.cursor(dictionary=True)
+
+    try:
+        cursor.execute(
+            "SELECT user_id FROM users WHERE user_id = %s",
+            (data.user_id.strip(),)
+        )
+        user = cursor.fetchone()
+
+        if not user:
+            raise HTTPException(
+                status_code=404,
+                detail="User not found"
+            )
+
+        cursor.execute("""
+            SELECT category_id
+            FROM skill_categories
+            WHERE name = 'Other'
+            LIMIT 1
+        """)
+        category = cursor.fetchone()
+
+        if not category:
+            raise HTTPException(
+                status_code=500,
+                detail="Other skill category not found"
+            )
+
+        for skill_name, skill_type in [
+            (teach_skill, "teach"),
+            (learn_skill, "want_to_learn")
+        ]:
+            cursor.execute("""
+                SELECT skill_id
+                FROM skills
+                WHERE LOWER(name) = LOWER(%s)
+                LIMIT 1
+            """, (skill_name,))
+            skill = cursor.fetchone()
+
+            if skill:
+                skill_id = skill["skill_id"]
+            else:
+                skill_id = str(uuid.uuid4())
+                cursor.execute("""
+                    INSERT INTO skills
+                        (skill_id, name, description, category_id)
+                    VALUES (%s, %s, %s, %s)
+                """, (
+                    skill_id,
+                    skill_name,
+                    None,
+                    category["category_id"]
+                ))
+
+            cursor.execute("""
+                SELECT user_skill_id
+                FROM user_skills
+                WHERE user_id = %s AND skill_type = %s
+            """, (data.user_id.strip(), skill_type))
+            existing = cursor.fetchone()
+
+            if existing:
+                cursor.execute("""
+                    UPDATE user_skills
+                    SET skill_id = %s
+                    WHERE user_id = %s AND skill_type = %s
+                """, (
+                    skill_id,
+                    data.user_id.strip(),
+                    skill_type
+                ))
+            else:
+                cursor.execute("""
+                    INSERT INTO user_skills
+                        (user_skill_id, user_id, skill_id, skill_type)
+                    VALUES (%s, %s, %s, %s)
+                """, (
+                    str(uuid.uuid4()),
+                    data.user_id.strip(),
+                    skill_id,
+                    skill_type
+                ))
+
+        db.commit()
+
+        return {
+            "success": True,
+            "message": "Skills updated successfully",
+            "teach_skill": teach_skill,
+            "learn_skill": learn_skill
+        }
+
+    except Exception:
+        db.rollback()
+        raise
+
     finally:
         cursor.close()
         db.close()

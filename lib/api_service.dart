@@ -47,6 +47,25 @@ class ApiService {
     return _handleResponse(response);
   }
 
+  // Add / Edit User Skills API
+  static Future<Map<String, dynamic>> updateSkills({
+    required String userId,
+    required String teachSkill,
+    required String learnSkill,
+  }) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/user-skills'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'user_id': userId,
+        'teach_skill': teachSkill,
+        'learn_skill': learnSkill,
+      }),
+    );
+
+    return _handleResponse(response);
+  }
+
   // Handle API response
   static Map<String, dynamic> _handleResponse(
     http.Response response,
