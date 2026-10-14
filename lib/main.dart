@@ -616,19 +616,31 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
 
-            Card(
-              child: ListTile(
-                leading: const Icon(
-                  Icons.school,
-                  color: Colors.indigo,
-                ),
-                title: const Text('My Skills'),
-                subtitle: Text(
-                  'I can teach: $teachSkill\n'
-                  'I want to learn: $learnSkill',
-                ),
-              ),
-            ),
+                        Card(
+                          child: ListTile(
+                            leading: const Icon(
+                              Icons.school,
+                              color: Colors.indigo,
+                            ),
+                            title: const Text('My Skills'),
+                            subtitle: Text(
+                              'I can teach: $teachSkill\n'
+                              'I want to learn: $learnSkill',
+                            ),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => MySkillsScreen(
+                                             teachSkill: teachSkill,
+                                             learnSkill: learnSkill,
+                                 ),
+
+                                ),
+                              );
+                            },
+                          ),
+                        ),
 
             Card(
               child: ListTile(
@@ -641,18 +653,18 @@ class HomeScreen extends StatelessWidget {
                   'View your profile information.',
                 ),
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ProfileScreen(
-                        name: name,
-                        email: email,
-                        teachSkill: teachSkill,
-                        learnSkill: learnSkill,
-                      ),
-                    ),
-                  );
-                },
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => ProfileScreen(
+  name: name,
+  email: email,
+  teachSkill: teachSkill,
+  learnSkill: learnSkill,
+     ),
+    ),
+  );
+},
               ),
             ),
           ],
@@ -678,7 +690,65 @@ class HomeScreen extends StatelessWidget {
     );
   }
 }
+class MySkillsScreen extends StatelessWidget {
+  final String teachSkill;
+  final String learnSkill;
 
+  const MySkillsScreen({
+    super.key,
+    required this.teachSkill,
+    required this.learnSkill,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Skills'),
+        backgroundColor: Colors.indigo,
+        foregroundColor: Colors.white,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          const Text(
+            'Your Skill Journey',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Card(
+            child: ListTile(
+              leading: const Icon(
+                Icons.school,
+                color: Colors.indigo,
+                size: 35,
+              ),
+              title: const Text('Skills I Can Teach'),
+              subtitle: Text(teachSkill),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const Icon(
+                Icons.menu_book,
+                color: Colors.deepOrange,
+                size: 35,
+              ),
+              title: const Text('Skills I Want to Learn'),
+              subtitle: Text(learnSkill),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== PROFILE SCREEN ====================
 // ==================== PROFILE SCREEN ====================
 
 class ProfileScreen extends StatelessWidget {
