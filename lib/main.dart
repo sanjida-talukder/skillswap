@@ -167,11 +167,13 @@ class _LoginScreenState extends State<LoginScreen> {
         context,
         MaterialPageRoute(
           builder: (context) => HomeScreen(
-            name: (data['full_name'] ?? email).toString(),
-            email: email,
-            teachSkill: 'Not added yet',
-            learnSkill: 'Not added yet',
-          ),
+                                  name: (data['user']['full_name'] ?? email).toString(),
+                                  email: (data['user']['email'] ?? email).toString(),
+                                  teachSkill:
+                                      (data['user']['teach_skill'] ?? 'Not added yet').toString(),
+                                  learnSkill:
+                                      (data['user']['learn_skill'] ?? 'Not added yet').toString(),
+                                )
         ),
         (route) => false,
       );
@@ -361,12 +363,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      await ApiService.register(
-        uniqueUsername: username,
-        email: email,
-        password: password,
-        fullName: name,
-      );
+      
+await ApiService.register(
+  uniqueUsername: username,
+  email: email,
+  password: password,
+  fullName: name,
+  teachSkill: teachSkill,
+  learnSkill: learnSkill,
+);
+
 
       if (!mounted) return;
 
@@ -381,12 +387,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder: (context) => HomeScreen(
-            name: name,
-            email: email,
-            teachSkill: teachSkill,
-            learnSkill: learnSkill,
-          ),
+         
+
+builder: (context) => HomeScreen(
+  name: name,
+  email: email,
+  teachSkill: teachSkill,
+  learnSkill: learnSkill,
+),
+
         ),
         (route) => false,
       );
@@ -783,8 +792,7 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 }
-// ==================== SEARCH SCREEN ====================
-
+ // ==================== SEARCH SCREEN ====================
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -797,7 +805,16 @@ class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _searchController =
       TextEditingController();
 
+  List<dynamic> skills = [];
+  bool isLoading = false;
+  String? errorMessage;
   String searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    loadSkills();
+  }
 
   @override
   void dispose() {
@@ -805,68 +822,214 @@ class _SearchScreenState extends State<SearchScreen> {
     super.dispose();
   }
 
+  Future<void> loadSkills({String search = ''}) async {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    try {
+      final results = await ApiService.findSkills(search: search);
+
+      if (!mounted) return;
+
+      setState(() {
+        skills = results;
+        searchQuery = search;
+        isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        errorMessage = e.toString().replaceFirst('Exception: ', '');
+        isLoading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Find a Skill'),
+        title: const Text('Explore Skills'),
         centerTitle: true,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                labelText: 'Search skills',
-                hintText: 'e.g. Python, English, Flutter',
-                prefixIcon: const Icon(Icons.search),
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    _searchController.clear();
-                    setState(() {
-                      searchQuery = '';
-                    });
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                TextField(
+                  controller: _searchController,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (value) {
+                    loadSkills(search: value.trim());
                   },
+                  decoration: InputDecoration(
+                    labelText: 'Search skills',
+                    hintText: 'Python, English, Flutter...',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: IconButton(
+                      tooltip: 'Clear search',
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        loadSkills();
+                      },
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: isLoading
+                        ? null
+                        : () => loadSkills(
+                              search: _searchController.text.trim(),
+                            ),
+                    icon: const Icon(Icons.search),
+                    label: const Text('Search Skills'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _buildResults(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResults() {
+    if (isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.cloud_off,
+                size: 52,
+                color: Colors.redAccent,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Could not load skills',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              onSubmitted: (value) {
-                setState(() {
-                  searchQuery = value.trim();
-                });
-              },
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  setState(() {
-                    searchQuery =
-                        _searchController.text.trim();
-                  });
-                },
-                icon: const Icon(Icons.search),
-                label: const Text('Search'),
-              ),
-            ),
-            const SizedBox(height: 20),
-            if (searchQuery.isNotEmpty)
+              const SizedBox(height: 8),
               Text(
-                'Searching for: $searchQuery',
-                style: const TextStyle(fontSize: 18),
-              )
-            else
-              const Text(
-                'Enter a skill to start searching.',
-                style: TextStyle(fontSize: 16),
+                errorMessage!,
+                textAlign: TextAlign.center,
               ),
-          ],
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () => loadSkills(
+                  search: _searchController.text.trim(),
+                ),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Try Again'),
+              ),
+            ],
+          ),
         ),
-      ),
+      );
+    }
+
+    if (skills.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.search_off,
+                size: 58,
+                color: Colors.grey,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                searchQuery.isEmpty
+                    ? 'No skills available yet'
+                    : 'No skills found for "$searchQuery"',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 17),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Try another keyword.',
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      itemCount: skills.length,
+      itemBuilder: (context, index) {
+        final skill = skills[index] as Map<String, dynamic>;
+        final name = (skill['name'] ?? 'Unnamed skill').toString();
+        final category = (
+          skill['category_name'] ??
+          skill['category'] ??
+          'General'
+        ).toString();
+        final description =
+            (skill['description'] ?? '').toString();
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: ListTile(
+            contentPadding: const EdgeInsets.all(12),
+            leading: CircleAvatar(
+              backgroundColor: Colors.indigo.withValues(alpha: 0.12),
+              child: const Icon(
+                Icons.auto_stories,
+                color: Colors.indigo,
+              ),
+            ),
+            title: Text(
+              name,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Category: $category'),
+                  if (description.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(description),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

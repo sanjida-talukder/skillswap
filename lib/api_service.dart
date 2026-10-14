@@ -11,6 +11,8 @@ class ApiService {
     required String email,
     required String password,
     required String fullName,
+    required String teachSkill,
+    required String learnSkill,
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/register'),
@@ -20,6 +22,8 @@ class ApiService {
         'email': email,
         'password': password,
         'full_name': fullName,
+        'teach_skill': teachSkill,
+        'learn_skill': learnSkill,
       }),
     );
 
@@ -61,5 +65,19 @@ class ApiService {
           'Request failed: ${response.statusCode}',
     );
   }
+  // Find Skills API
+  static Future<List<dynamic>> findSkills({
+    String search = '',
+  }) async {
+    final uri = Uri.parse('$baseUrl/skills').replace(
+      queryParameters: {'search': search},
+    );
+
+    final response = await http.get(uri);
+    final data = _handleResponse(response);
+
+    return data['skills'] as List<dynamic>;
+  }
+
 }
 

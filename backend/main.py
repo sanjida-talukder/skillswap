@@ -1,5 +1,8 @@
+
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import uuid
 import os
 import mysql.connector
 import bcrypt
@@ -8,6 +11,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = FastAPI(title="SkillSwap API")
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"^http://(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def get_db_connection():
@@ -87,77 +99,140 @@ def get_users():
 
 # ---------------- REGISTER ----------------
 
+
 class UserCreate(BaseModel):
     unique_username: str
     email: str
     password: str
     full_name: str | None = None
+    teach_skill: str
+    learn_skill: str
+
 
 
 @app.post("/register")
 def register_user(user: UserCreate):
-
     db = get_db_connection()
     cursor = db.cursor(dictionary=True)
 
-    # Check username/email already exists
-    cursor.execute("""
-        SELECT user_id
-        FROM users
-        WHERE unique_username = %s OR email = %s
-    """, (user.unique_username, user.email))
+    try:
+        username = user.unique_username.strip()
+        email = user.email.strip()
+        teach_skill = user.teach_skill.strip()
+        learn_skill = user.learn_skill.strip()
 
-    existing_user = cursor.fetchone()
+        if not teach_skill or not learn_skill:
+            raise HTTPException(
+                status_code=400,
+                detail="Both teach and learn skills are required"
+            )
 
-    if existing_user:
+        cursor.execute("""
+            SELECT user_id
+            FROM users
+            WHERE unique_username = %s OR email = %s
+        """, (username, email))
+
+        if cursor.fetchone():
+            raise HTTPException(
+                status_code=400,
+                detail="Username or email already exists"
+            )
+
+        # Find the existing Other category
+        cursor.execute("""
+            SELECT category_id
+            FROM skill_categories
+            WHERE name = %s
+        """, ("Other",))
+
+        category = cursor.fetchone()
+
+        if not category:
+            raise HTTPException(
+                status_code=500,
+                detail="Other skill category was not found"
+            )
+
+        category_id = category["category_id"]
+        user_id = str(uuid.uuid4())
+
+        hashed_password = bcrypt.hashpw(
+            user.password.encode("utf-8"),
+            bcrypt.gensalt()
+        ).decode("utf-8")
+
+        cursor.execute("""
+            INSERT INTO users
+                (user_id, unique_username, email, password_hash, full_name)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (
+            user_id,
+            username,
+            email,
+            hashed_password,
+            user.full_name
+        ))
+
+        saved_skills = [
+            (teach_skill, "teach"),
+            (learn_skill, "want_to_learn")
+        ]
+
+        for skill_name, skill_type in saved_skills:
+            # Reuse a skill if it already exists
+            cursor.execute("""
+                SELECT skill_id
+                FROM skills
+                WHERE LOWER(name) = LOWER(%s)
+                LIMIT 1
+            """, (skill_name,))
+
+            skill = cursor.fetchone()
+
+            if skill:
+                skill_id = skill["skill_id"]
+            else:
+                skill_id = str(uuid.uuid4())
+
+                cursor.execute("""
+                    INSERT INTO skills
+                        (skill_id, name, description, category_id)
+                    VALUES (%s, %s, %s, %s)
+                """, (
+                    skill_id,
+                    skill_name,
+                    None,
+                    category_id
+                ))
+
+            cursor.execute("""
+                INSERT INTO user_skills
+                    (user_skill_id, user_id, skill_id, skill_type)
+                VALUES (%s, %s, %s, %s)
+            """, (
+                str(uuid.uuid4()),
+                user_id,
+                skill_id,
+                skill_type
+            ))
+
+        db.commit()
+
+        return {
+            "success": True,
+            "message": "Registration successful"
+        }
+
+    except Exception:
+        db.rollback()
+        raise
+
+    finally:
         cursor.close()
         db.close()
 
-        raise HTTPException(
-            status_code=400,
-            detail="Username or email already exists"
-        )
 
-    # Hash password
-    hashed_password = bcrypt.hashpw(
-        user.password.encode("utf-8"),
-        bcrypt.gensalt()
-    ).decode("utf-8")
-
-    # Insert user
-    cursor.execute("""
-        INSERT INTO users
-        (
-            user_id,
-            unique_username,
-            email,
-            password_hash,
-            full_name
-        )
-        VALUES
-        (
-            UUID(),
-            %s,
-            %s,
-            %s,
-            %s
-        )
-    """, (
-        user.unique_username,
-        user.email,
-        hashed_password,
-        user.full_name
-    ))
-
-    db.commit()
-
-    cursor.close()
-    db.close()
-
-    return {
-        "success": True,
-        "message": "Registration successful"
-    }
 
 # ---------------- LOGIN ----------------
 
@@ -166,64 +241,84 @@ class LoginRequest(BaseModel):
     password: str
 
 
+
 @app.post("/login")
 def login_user(data: LoginRequest):
-
     db = get_db_connection()
     cursor = db.cursor(dictionary=True)
 
-    cursor.execute("""
-        SELECT
-            user_id,
-            unique_username,
-            email,
-            password_hash,
-            full_name,
-            is_active,
-            is_verified
-        FROM users
-        WHERE email = %s
-    """, (data.email,))
+    try:
+        cursor.execute("""
+            SELECT
+                user_id,
+                unique_username,
+                email,
+                password_hash,
+                full_name,
+                is_active,
+                is_verified
+            FROM users
+            WHERE email = %s
+        """, (data.email.strip(),))
 
-    user = cursor.fetchone()
+        user = cursor.fetchone()
 
-    if not user:
-        cursor.close()
-        db.close()
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid email or password"
+        if not user:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid email or password"
+            )
+
+        password_valid = bcrypt.checkpw(
+            data.password.encode("utf-8"),
+            user["password_hash"].encode("utf-8")
         )
 
-    # Verify password
-    password_valid = bcrypt.checkpw(
-        data.password.encode("utf-8"),
-        user["password_hash"].encode("utf-8")
-    )
+        if not password_valid:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid email or password"
+            )
 
-    if not password_valid:
-        cursor.close()
-        db.close()
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid email or password"
-        )
+        cursor.execute("""
+            SELECT s.name
+            FROM user_skills us
+            JOIN skills s ON s.skill_id = us.skill_id
+            WHERE us.user_id = %s AND us.skill_type = %s
+            LIMIT 1
+        """, (user["user_id"], "teach"))
 
-    cursor.close()
-    db.close()
+        teach = cursor.fetchone()
 
-    return {
-        "success": True,
-        "message": "Login successful",
-        "user": {
-            "user_id": user["user_id"],
-            "unique_username": user["unique_username"],
-            "email": user["email"],
-            "full_name": user["full_name"],
-            "is_active": user["is_active"],
-            "is_verified": user["is_verified"]
+        cursor.execute("""
+            SELECT s.name
+            FROM user_skills us
+            JOIN skills s ON s.skill_id = us.skill_id
+            WHERE us.user_id = %s AND us.skill_type = %s
+            LIMIT 1
+        """, (user["user_id"], "want_to_learn"))
+
+        learn = cursor.fetchone()
+
+        return {
+            "success": True,
+            "message": "Login successful",
+            "user": {
+                "user_id": user["user_id"],
+                "unique_username": user["unique_username"],
+                "email": user["email"],
+                "full_name": user["full_name"],
+                "is_active": user["is_active"],
+                "is_verified": user["is_verified"],
+                "teach_skill": teach["name"] if teach else "Not added yet",
+                "learn_skill": learn["name"] if learn else "Not added yet"
+            }
         }
-    }
+
+    finally:
+        cursor.close()
+        db.close()
+
 # ---------------- FIND A SKILL ----------------
 
 @app.get("/skills")
