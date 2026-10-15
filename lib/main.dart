@@ -307,6 +307,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final learnSkillController = TextEditingController();
 
   bool isLoading = false;
+  bool isCheckingUsername = false;
+  bool? isUsernameAvailable;
+  String usernameMessage = '';
 
   @override
   void dispose() {
@@ -317,6 +320,53 @@ class _RegisterScreenState extends State<RegisterScreen> {
     teachSkillController.dispose();
     learnSkillController.dispose();
     super.dispose();
+  }
+
+  Future<void> checkUsernameAvailability(String value) async {
+    final username = value.trim();
+
+    if (username.isEmpty) {
+      setState(() {
+        isUsernameAvailable = null;
+        usernameMessage = '';
+        isCheckingUsername = false;
+      });
+      return;
+    }
+
+    setState(() {
+      isCheckingUsername = true;
+      isUsernameAvailable = null;
+      usernameMessage = 'Checking username...';
+    });
+
+    try {
+      final data = await ApiService.checkUsername(username);
+
+      if (!mounted || usernameController.text.trim() != username) {
+        return;
+      }
+
+      setState(() {
+        isUsernameAvailable = data['available'] == true;
+        usernameMessage = data['message']?.toString() ?? '';
+      });
+    } catch (e) {
+      if (!mounted || usernameController.text.trim() != username) {
+        return;
+      }
+
+      setState(() {
+        isUsernameAvailable = null;
+        usernameMessage = 'Could not check username. Try again.';
+      });
+    } finally {
+      if (mounted && usernameController.text.trim() == username) {
+        setState(() {
+          isCheckingUsername = false;
+        });
+      }
+    }
   }
 
   Future<void> registerUser() async {
@@ -360,7 +410,50 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
       return;
     }
+    setState(() {
+      isCheckingUsername = true;
+    });
 
+    try {
+      final usernameData =
+          await ApiService.checkUsername(username);
+
+      if (!mounted) return;
+
+      if (usernameData['available'] != true) {
+        setState(() {
+          isCheckingUsername = false;
+          isUsernameAvailable = false;
+          usernameMessage = 'Username already exists';
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Username already exists. Choose another.'),
+          ),
+        );
+        return;
+      }
+
+      setState(() {
+        isUsernameAvailable = true;
+        usernameMessage = 'Username is available';
+        isCheckingUsername = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isCheckingUsername = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not verify username. Please try again.'),
+        ),
+      );
+      return;
+    }
     setState(() {
       isLoading = true;
     });
@@ -452,17 +545,61 @@ final data = await ApiService.register(
 
             const SizedBox(height: 15),
 
-            TextField(
-              controller: usernameController,
-              decoration: InputDecoration(
-                labelText: 'Unique Username',
-                hintText: 'Example: sanjida123',
-                prefixIcon: const Icon(Icons.alternate_email),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
+
+                        TextField(
+                          controller: usernameController,
+                          onChanged: (value) {
+                            checkUsernameAvailability(value);
+                          },
+                          decoration: InputDecoration(
+                            labelText: 'Unique Username',
+                            hintText: 'Example: sanjida123',
+                            prefixIcon: const Icon(Icons.alternate_email),
+                            suffixIcon: isCheckingUsername
+                                ? const Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  )
+                                : isUsernameAvailable == null
+                                    ? null
+                                    : Icon(
+                                        isUsernameAvailable!
+                                            ? Icons.check_circle
+                                            : Icons.cancel,
+                                        color: isUsernameAvailable!
+                                            ? Colors.green
+                                            : Colors.red,
+                                      ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+
+                        if (usernameMessage.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6, left: 8),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                usernameMessage,
+                                style: TextStyle(
+                                  color: isUsernameAvailable == true
+                                      ? Colors.green
+                                      : isUsernameAvailable == false
+                                          ? Colors.red
+                                          : Colors.grey,
+                                ),
+                              ),
+                            ),
+                          ),
+
 
             const SizedBox(height: 15),
 

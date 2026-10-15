@@ -30,6 +30,20 @@ class ApiService {
     return _handleResponse(response);
   }
 
+  // Check Username Availability API
+  static Future<Map<String, dynamic>> checkUsername(
+    String username,
+  ) async {
+    final encodedUsername = Uri.encodeComponent(username.trim());
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/check-username/$encodedUsername'),
+    );
+
+    return _handleResponse(response);
+  }
+
+
   // Login API
   static Future<Map<String, dynamic>> login({
     required String email,

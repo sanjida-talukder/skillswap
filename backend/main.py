@@ -97,6 +97,36 @@ def get_users():
     }
 
 
+# ---------------- CHECK USERNAME ----------------
+
+@app.get("/check-username/{username}")
+def check_username(username: str):
+    db = get_db_connection()
+    cursor = db.cursor(dictionary=True)
+
+    try:
+        cursor.execute(
+            "SELECT user_id FROM users WHERE unique_username = %s",
+            (username.strip(),)
+        )
+        existing_user = cursor.fetchone()
+
+        return {
+            "available": existing_user is None,
+            "message": (
+                "Username is available"
+                if existing_user is None
+                else "Username already exists"
+            )
+        }
+
+    finally:
+        cursor.close()
+        db.close()
+
+
+
+
 # ---------------- REGISTER ----------------
 
 
