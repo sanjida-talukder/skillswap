@@ -16,7 +16,23 @@ class SkillSwapApp extends StatelessWidget {
       title: 'SkillSwap',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.indigo,
+          seedColor: const Color(0xFF0F766E),
+          brightness: Brightness.light,
+        ),
+        scaffoldBackgroundColor: const Color(0xFFF5F7FA),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFFF5F7FA),
+          foregroundColor: Color(0xFF172554),
+          elevation: 0,
+          centerTitle: false,
+        ),
+        cardTheme: CardThemeData(
+          color: Colors.white,
+          elevation: 1,
+          margin: const EdgeInsets.only(bottom: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
         ),
         useMaterial3: true,
       ),
@@ -706,123 +722,197 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    const navy = Color(0xFF172554);
+    const teal = Color(0xFF0F766E);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('SkillSwap'),
-        centerTitle: true,
+        title: const Text(
+          'SkillSwap',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: CircleAvatar(
+              backgroundColor: const Color(0xFFD1FAE5),
+              child: Text(
+                name.isNotEmpty ? name[0].toUpperCase() : 'S',
+                style: const TextStyle(
+                  color: teal,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0F766E), Color(0xFF164E63)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.waving_hand_rounded,
+                    color: Colors.white,
+                    size: 30,
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Welcome, $name!',
+                    style: const TextStyle(
+                      fontSize: 25,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Learn something new. Share what you know.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: teal,
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SearchScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.search),
+                    label: const Text('Explore skills'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 28),
             Text(
-              'Welcome, $name!',
-              style: const TextStyle(
-                fontSize: 26,
+              'Your learning journey',
+              style: theme.textTheme.titleLarge?.copyWith(
+                color: navy,
                 fontWeight: FontWeight.bold,
               ),
             ),
-
-            const SizedBox(height: 10),
-
-            const Text(
-              'Exchange your skills with other learners.',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey,
+            const SizedBox(height: 6),
+            Text(
+              'Share your strengths and discover new ones.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: Colors.blueGrey,
               ),
             ),
+            const SizedBox(height: 18),
+            _DashboardCard(
+              icon: Icons.travel_explore_rounded,
+              color: const Color(0xFF0F766E),
+              title: 'Find a Skill',
+              subtitle: 'Discover skills and search for teachers.',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const SearchScreen(),
+                  ),
+                );
+              },
+            ),
+            _DashboardCard(
+              icon: Icons.auto_stories_rounded,
+              color: const Color(0xFF6D5BD0),
+              title: 'My Skills',
+              subtitle: 'Teach: $teachSkill\nLearn: $learnSkill',
+              onTap: () async {
+                final result = await Navigator.push<Map<String, String>>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => MySkillsScreen(
+                      userId: userId,
+                      teachSkill: teachSkill,
+                      learnSkill: learnSkill,
+                    ),
+                  ),
+                );
 
-            const SizedBox(height: 30),
-
-            Card(
-              child: ListTile(
-                leading: const Icon(
-                  Icons.search,
-                  color: Colors.indigo,
-                ),
-                title: const Text('Find a Skill'),
-                subtitle: const Text(
-                  'Search for people who can teach you.',
-                ),
-                onTap: () {
-                  Navigator.push(
+                if (result != null && context.mounted) {
+                  Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const SearchScreen(),
+                      builder: (_) => HomeScreen(
+                        userId: userId,
+                        name: name,
+                        email: email,
+                        teachSkill: result['teachSkill'] ?? teachSkill,
+                        learnSkill: result['learnSkill'] ?? learnSkill,
+                      ),
                     ),
                   );
-                },
-              ),
+                }
+              },
             ),
-
-                        Card(
-                          child: ListTile(
-                            leading: const Icon(
-                              Icons.school,
-                              color: Colors.indigo,
-                            ),
-                            title: const Text('My Skills'),
-                            subtitle: Text(
-                              'I can teach: $teachSkill\n'
-                              'I want to learn: $learnSkill',
-                            ),
-
-                            onTap: () async {
-                              final result = await Navigator.push<Map<String, String>>(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => MySkillsScreen(
-                                    userId: userId,
-                                    teachSkill: teachSkill,
-                                    learnSkill: learnSkill,
-                                  ),
-                                ),
-                              );
-
-                              if (result != null && context.mounted) {
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => HomeScreen(
-                                      userId: userId,
-                                      name: name,
-                                      email: email,
-                                      teachSkill: result['teachSkill'] ?? teachSkill,
-                                      learnSkill: result['learnSkill'] ?? learnSkill,
-                                    ),
-                                  ),
-                                );
-                              }
-                            },
-
-                          ),
-                        ),
-
-            Card(
-              child: ListTile(
-                leading: const Icon(
-                  Icons.person,
-                  color: Colors.indigo,
-                ),
-                title: const Text('My Profile'),
-                subtitle: const Text(
-                  'View your profile information.',
-                ),
-                onTap: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => ProfileScreen(
-  name: name,
-  email: email,
-  teachSkill: teachSkill,
-  learnSkill: learnSkill,
-     ),
-    ),
-  );
-},
+            _DashboardCard(
+              icon: Icons.account_circle_rounded,
+              color: const Color(0xFF2563EB),
+              title: 'My Profile',
+              subtitle: 'View your account and skill information.',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ProfileScreen(
+                      name: name,
+                      email: email,
+                      teachSkill: teachSkill,
+                      learnSkill: learnSkill,
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE6FFFA),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.lightbulb_outline, color: teal, size: 28),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Every skill is worth sharing. Keep learning!',
+                      style: TextStyle(
+                        color: Color(0xFF115E59),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -830,17 +920,42 @@ class HomeScreen extends StatelessWidget {
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 0,
+        selectedItemColor: teal,
+        unselectedItemColor: Colors.blueGrey,
+        type: BottomNavigationBarType.fixed,
+        onTap: (index) {
+          if (index == 1) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const SearchScreen(),
+              ),
+            );
+          } else if (index == 2) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ProfileScreen(
+                  name: name,
+                  email: email,
+                  teachSkill: teachSkill,
+                  learnSkill: learnSkill,
+                ),
+              ),
+            );
+          }
+        },
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.home),
+            icon: Icon(Icons.home_rounded),
             label: 'Home',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.search),
-            label: 'Search',
+            icon: Icon(Icons.search_rounded),
+            label: 'Explore',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.person),
+            icon: Icon(Icons.person_rounded),
             label: 'Profile',
           ),
         ],
@@ -848,6 +963,55 @@ class HomeScreen extends StatelessWidget {
     );
   }
 }
+
+class _DashboardCard extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _DashboardCard({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 14),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
+        leading: Container(
+          width: 50,
+          height: 50,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Icon(icon, color: color, size: 27),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 5),
+          child: Text(subtitle),
+        ),
+        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
 
 class MySkillsScreen extends StatefulWidget {
   final String userId;
