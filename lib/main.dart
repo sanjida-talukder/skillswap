@@ -310,8 +310,7 @@ class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
   @override
-  State<RegisterScreen> createState() =>
-      _RegisterScreenState();
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
@@ -326,6 +325,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool isCheckingUsername = false;
   bool? isUsernameAvailable;
   String usernameMessage = '';
+
+  final List<String> skills = const [
+    'Programming',
+    'Web Development',
+    'Graphic Design',
+    'UI/UX Design',
+    'Video Editing',
+    'Photography',
+    'Digital Marketing',
+    'English',
+    'Mathematics',
+    'Other',
+  ];
 
   @override
   void dispose() {
@@ -419,13 +431,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (password.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Password must be at least 6 characters.',
-          ),
+          content: Text('Password must be at least 6 characters.'),
         ),
       );
       return;
     }
+
     setState(() {
       isCheckingUsername = true;
     });
@@ -445,7 +456,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Username already exists. Choose another.'),
+            content: Text(
+              'Username already exists. Choose another.',
+            ),
           ),
         );
         return;
@@ -455,74 +468,55 @@ class _RegisterScreenState extends State<RegisterScreen> {
         isUsernameAvailable = true;
         usernameMessage = 'Username is available';
         isCheckingUsername = false;
+        isLoading = true;
       });
-    } catch (e) {
-      if (!mounted) return;
 
-      setState(() {
-        isCheckingUsername = false;
-      });
+      final data = await ApiService.register(
+        uniqueUsername: username,
+        email: email,
+        password: password,
+        fullName: name,
+        teachSkill: teachSkill,
+        learnSkill: learnSkill,
+      );
+
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Could not verify username. Please try again.'),
+          content: Text('Account created successfully!'),
         ),
       );
-      return;
-    }
-    setState(() {
-      isLoading = true;
-    });
 
-    try {
-      
-final data = await ApiService.register(
-  uniqueUsername: username,
-  email: email,
-  password: password,
-  fullName: name,
-  teachSkill: teachSkill,
-  learnSkill: learnSkill,
-);
-
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Account created successfully!',
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => HomeScreen(
+            userId: (data['user_id'] ?? '').toString(),
+            name: name,
+            email: email,
+            teachSkill: teachSkill,
+            learnSkill: learnSkill,
           ),
         ),
+        (route) => false,
       );
-
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(
-                builder: (context) => HomeScreen(
-                  userId: (data['user_id'] ?? '').toString(),
-                  name: name,
-                  email: email,
-                  teachSkill: teachSkill,
-                  learnSkill: learnSkill,
-                ),
-              ),
-              (route) => false,
-            );
     } catch (e) {
       if (!mounted) return;
+
+      final errorMessage =
+          e.toString().replaceFirst('Exception: ', '');
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Registration failed: ${e.toString().replaceFirst('Exception: ', '')}',
-          ),
+          content: Text('Registration failed: $errorMessage'),
         ),
       );
     } finally {
       if (mounted) {
         setState(() {
           isLoading = false;
+          isCheckingUsername = false;
         });
       }
     }
@@ -561,61 +555,60 @@ final data = await ApiService.register(
 
             const SizedBox(height: 15),
 
-
-                        TextField(
-                          controller: usernameController,
-                          onChanged: (value) {
-                            checkUsernameAvailability(value);
-                          },
-                          decoration: InputDecoration(
-                            labelText: 'Unique Username',
-                            hintText: 'Example: sanjida123',
-                            prefixIcon: const Icon(Icons.alternate_email),
-                            suffixIcon: isCheckingUsername
-                                ? const Padding(
-                                    padding: EdgeInsets.all(12),
-                                    child: SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    ),
-                                  )
-                                : isUsernameAvailable == null
-                                    ? null
-                                    : Icon(
-                                        isUsernameAvailable!
-                                            ? Icons.check_circle
-                                            : Icons.cancel,
-                                        color: isUsernameAvailable!
-                                            ? Colors.green
-                                            : Colors.red,
-                                      ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+            TextField(
+              controller: usernameController,
+              onChanged: checkUsernameAvailability,
+              decoration: InputDecoration(
+                labelText: 'Unique Username',
+                hintText: 'Example: sanjida123',
+                prefixIcon: const Icon(Icons.alternate_email),
+                suffixIcon: isCheckingUsername
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
                           ),
                         ),
-
-                        if (usernameMessage.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 6, left: 8),
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                usernameMessage,
-                                style: TextStyle(
-                                  color: isUsernameAvailable == true
-                                      ? Colors.green
-                                      : isUsernameAvailable == false
-                                          ? Colors.red
-                                          : Colors.grey,
-                                ),
-                              ),
-                            ),
+                      )
+                    : isUsernameAvailable == null
+                        ? null
+                        : Icon(
+                            isUsernameAvailable!
+                                ? Icons.check_circle
+                                : Icons.cancel,
+                            color: isUsernameAvailable!
+                                ? Colors.green
+                                : Colors.red,
                           ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
 
+            if (usernameMessage.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(
+                  top: 6,
+                  left: 8,
+                ),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    usernameMessage,
+                    style: TextStyle(
+                      color: isUsernameAvailable == true
+                          ? Colors.green
+                          : isUsernameAvailable == false
+                              ? Colors.red
+                              : Colors.grey,
+                    ),
+                  ),
+                ),
+              ),
 
             const SizedBox(height: 15),
 
@@ -647,33 +640,89 @@ final data = await ApiService.register(
 
             const SizedBox(height: 15),
 
-            TextField(
-              controller: teachSkillController,
-              decoration: InputDecoration(
-                labelText: 'Skill I Can Teach',
-                hintText: 'Example: Photoshop',
-                prefixIcon: const Icon(Icons.school),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
+                        Autocomplete<String>(
+                          optionsBuilder: (TextEditingValue value) {
+                            if (value.text.isEmpty) {
+                              return skills;
+                            }
 
-            const SizedBox(height: 15),
+                            return skills.where(
+                              (skill) => skill.toLowerCase().contains(
+                                value.text.toLowerCase(),
+                              ),
+                            );
+                          },
+                          onSelected: (value) {
+                            teachSkillController.text = value;
+                          },
+                          fieldViewBuilder: (
+                            context,
+                            textEditingController,
+                            focusNode,
+                            onFieldSubmitted,
+                          ) {
+                            return TextField(
+                              controller: textEditingController,
+                              focusNode: focusNode,
+                              onChanged: (value) {
+                                teachSkillController.text = value;
+                              },
+                              onSubmitted: (_) => onFieldSubmitted(),
+                              decoration: InputDecoration(
+                                labelText: 'Skill I Can Teach',
+                                hintText: 'Type or select a skill',
+                                prefixIcon: const Icon(Icons.school),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
 
-            TextField(
-              controller: learnSkillController,
-              decoration: InputDecoration(
-                labelText: 'Skill I Want to Learn',
-                hintText: 'Example: Web Development',
-                prefixIcon: const Icon(Icons.auto_stories),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
+                        const SizedBox(height: 15),
 
-            const SizedBox(height: 25),
+                        Autocomplete<String>(
+                          optionsBuilder: (TextEditingValue value) {
+                            if (value.text.isEmpty) {
+                              return skills;
+                            }
+
+                            return skills.where(
+                              (skill) => skill.toLowerCase().contains(
+                                value.text.toLowerCase(),
+                              ),
+                            );
+                          },
+                          onSelected: (value) {
+                            learnSkillController.text = value;
+                          },
+                          fieldViewBuilder: (
+                            context,
+                            textEditingController,
+                            focusNode,
+                            onFieldSubmitted,
+                          ) {
+                            return TextField(
+                              controller: textEditingController,
+                              focusNode: focusNode,
+                              onChanged: (value) {
+                                learnSkillController.text = value;
+                              },
+                              onSubmitted: (_) => onFieldSubmitted(),
+                              decoration: InputDecoration(
+                                labelText: 'Skill I Want to Learn',
+                                hintText: 'Type or select a skill',
+                                prefixIcon: const Icon(Icons.auto_stories),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+
+                        const SizedBox(height: 25),
 
             SizedBox(
               width: double.infinity,
@@ -789,23 +838,7 @@ class HomeScreen extends StatelessWidget {
                       color: Colors.white,
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: teal,
-                    ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const SearchScreen(),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.search),
-                    label: const Text('Explore skills'),
-                  ),
+
                 ],
               ),
             ),
@@ -872,25 +905,7 @@ class HomeScreen extends StatelessWidget {
                 }
               },
             ),
-            _DashboardCard(
-              icon: Icons.account_circle_rounded,
-              color: const Color(0xFF2563EB),
-              title: 'My Profile',
-              subtitle: 'View your account and skill information.',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ProfileScreen(
-                      name: name,
-                      email: email,
-                      teachSkill: teachSkill,
-                      learnSkill: learnSkill,
-                    ),
-                  ),
-                );
-              },
-            ),
+
             const SizedBox(height: 12),
             Container(
               width: double.infinity,
@@ -918,48 +933,39 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 0,
-        selectedItemColor: teal,
-        unselectedItemColor: Colors.blueGrey,
-        type: BottomNavigationBarType.fixed,
-        onTap: (index) {
-          if (index == 1) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const SearchScreen(),
-              ),
-            );
-          } else if (index == 2) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ProfileScreen(
-                  name: name,
-                  email: email,
-                  teachSkill: teachSkill,
-                  learnSkill: learnSkill,
-                ),
-              ),
-            );
-          }
-        },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_rounded),
-            label: 'Home',
+
+bottomNavigationBar: BottomNavigationBar(
+  currentIndex: 0,
+  selectedItemColor: teal,
+  unselectedItemColor: Colors.blueGrey,
+  type: BottomNavigationBarType.fixed,
+  onTap: (index) {
+    if (index == 1) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ProfileScreen(
+            name: name,
+            email: email,
+            teachSkill: teachSkill,
+            learnSkill: learnSkill,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.search_rounded),
-            label: 'Explore',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_rounded),
-            label: 'Profile',
-          ),
-        ],
-      ),
+        ),
+      );
+    }
+  },
+  items: const [
+    BottomNavigationBarItem(
+      icon: Icon(Icons.home_rounded),
+      label: 'Home',
+    ),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.person_rounded),
+      label: 'Profile',
+    ),
+  ],
+),
+
     );
   }
 }
