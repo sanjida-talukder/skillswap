@@ -1146,8 +1146,8 @@ class _MySkillsScreenState extends State<MySkillsScreen> {
 }
 
 
-// ==================== PROFILE SCREEN ====================
-// ==================== PROFILE SCREEN ====================
+
+ // ==================== PROFILE SCREEN ====================
 
 class ProfileScreen extends StatelessWidget {
   final String name;
@@ -1165,93 +1165,363 @@ class ProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const navy = Color(0xFF172554);
+    const teal = Color(0xFF0F766E);
+    const pageColor = Color(0xFFF4F7FB);
+
     return Scaffold(
+      backgroundColor: pageColor,
       appBar: AppBar(
-        title: const Text('My Profile'),
+        backgroundColor: pageColor,
+        foregroundColor: navy,
+        elevation: 0,
+        centerTitle: true,
+        title: const Text(
+          'My Profile',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 21,
+          ),
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Settings',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Profile settings coming soon'),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 15),
-
-            const CircleAvatar(
-              radius: 50,
-              child: Icon(
-                Icons.person,
-                size: 55,
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            Text(
-              name,
-              style: const TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(height: 5),
-
-            Text(
-              email,
-              style: const TextStyle(
-                fontSize: 16,
-                color: Colors.grey,
-              ),
-            ),
-
-            const SizedBox(height: 30),
-
-            Card(
-              child: ListTile(
-                leading: const Icon(
-                  Icons.person,
-                  color: Colors.indigo,
+            // Cover banner
+            Container(
+              height: 155,
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Color(0xFF172554),
+                    Color(0xFF0F766E),
+                    Color(0xFF2DD4BF),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                title: const Text('Full Name'),
-                subtitle: Text(name),
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(30),
+                  bottomRight: Radius.circular(30),
+                ),
+              ),
+              child: Stack(
+                children: [
+                  Positioned(
+                    right: 18,
+                    top: 18,
+                    child: Icon(
+                      Icons.auto_awesome,
+                      size: 45,
+                      color: Colors.white.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  Positioned(
+                    right: 75,
+                    bottom: 18,
+                    child: Icon(
+                      Icons.menu_book_rounded,
+                      size: 65,
+                      color: Colors.white.withValues(alpha: 0.18),
+                    ),
+                  ),
+                  const Positioned(
+                    left: 22,
+                    top: 22,
+                    child: Text(
+                      'YOUR SKILLS. YOUR FUTURE.',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.3,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
 
-            const SizedBox(height: 10),
+            // Profile avatar and information
+            Transform.translate(
+              offset: const Offset(0, -45),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: CircleAvatar(
+                            radius: 48,
+                            backgroundColor: const Color(0xFFD1FAE5),
+                            child: Text(
+                              name.trim().isNotEmpty
+                                  ? name.trim()[0].toUpperCase()
+                                  : 'S',
+                              style: const TextStyle(
+                                fontSize: 36,
+                                fontWeight: FontWeight.bold,
+                                color: teal,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 5),
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Edit Profile feature is coming next',
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: const Icon(
+                              Icons.edit_outlined,
+                              size: 17,
+                            ),
+                            label: const Text('Edit Profile'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: teal,
+                              side: const BorderSide(color: teal),
+                              backgroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
 
-            Card(
-              child: ListTile(
-                leading: const Icon(
-                  Icons.email,
-                  color: Colors.indigo,
+                    const SizedBox(height: 10),
+
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        color: navy,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.email_outlined,
+                          color: teal,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: Text(
+                            email,
+                            style: const TextStyle(
+                              color: Color(0xFF64748B),
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // About Me
+                    _profileSectionTitle(
+                      'About Me',
+                      Icons.person_outline_rounded,
+                    ),
+                    const SizedBox(height: 11),
+                    _profileCard(
+                      child: const Text(
+                        'I am part of the SkillSwap community, '
+                        'where I share what I know and learn '
+                        'something new from others.',
+                        style: TextStyle(
+                          color: Color(0xFF475569),
+                          fontSize: 14,
+                          height: 1.7,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Teach skills
+                    _profileSectionTitle(
+                      'Skills I Can Teach',
+                      Icons.school_rounded,
+                    ),
+                    const SizedBox(height: 11),
+                    _profileCard(
+                      child: _buildSkillChips(
+                        teachSkill,
+                        const Color(0xFFD1FAE5),
+                        const Color(0xFF065F46),
+                        Icons.lightbulb_outline_rounded,
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Learning skills
+                    _profileSectionTitle(
+                      'Skills I Want to Learn',
+                      Icons.auto_stories_rounded,
+                    ),
+                    const SizedBox(height: 11),
+                    _profileCard(
+                      child: _buildSkillChips(
+                        learnSkill,
+                        const Color(0xFFDBEAFE),
+                        const Color(0xFF1D4ED8),
+                        Icons.menu_book_rounded,
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Learning activity
+                    _profileSectionTitle(
+                      'Learning Activity',
+                      Icons.insights_rounded,
+                    ),
+                    const SizedBox(height: 11),
+                    _profileCard(
+                      child: const Row(
+                        children: [
+                          Expanded(
+                            child: _ProfileStat(
+                              icon: Icons.event_available_rounded,
+                              value: '—',
+                              label: 'Sessions',
+                              color: Color(0xFF0F766E),
+                            ),
+                          ),
+                          Expanded(
+                            child: _ProfileStat(
+                              icon: Icons.workspace_premium_rounded,
+                              value: '—',
+                              label: 'Skills Shared',
+                              color: Color(0xFF7C3AED),
+                            ),
+                          ),
+                          Expanded(
+                            child: _ProfileStat(
+                              icon: Icons.trending_up_rounded,
+                              value: '—',
+                              label: 'Skills Learned',
+                              color: Color(0xFF2563EB),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Ratings
+                    _profileSectionTitle(
+                      'Ratings & Reviews',
+                      Icons.star_rounded,
+                    ),
+                    const SizedBox(height: 11),
+                    _profileCard(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF3CD),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(
+                              Icons.star_rounded,
+                              color: Color(0xFFD97706),
+                              size: 30,
+                            ),
+                          ),
+                          const SizedBox(width: 13),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Build your reputation',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: navy,
+                                  ),
+                                ),
+                                SizedBox(height: 6),
+                                Text(
+                                  'Ratings and reviews from other '
+                                  'learners will appear here after '
+                                  'completed skill exchange sessions.',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    height: 1.6,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    Center(
+                      child: Text(
+                        'Learn • Share • Grow with SkillSwap',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.blueGrey.shade400,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+                  ],
                 ),
-                title: const Text('Email'),
-                subtitle: Text(email),
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            Card(
-              child: ListTile(
-                leading: const Icon(
-                  Icons.school,
-                  color: Colors.indigo,
-                ),
-                title: const Text('Skill I Can Teach'),
-                subtitle: Text(teachSkill),
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            Card(
-              child: ListTile(
-                leading: const Icon(
-                  Icons.auto_stories,
-                  color: Colors.indigo,
-                ),
-                title: const Text('Skill I Want to Learn'),
-                subtitle: Text(learnSkill),
               ),
             ),
           ],
@@ -1259,7 +1529,153 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
   }
+
+  Widget _profileSectionTitle(String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          color: const Color(0xFF0F766E),
+          size: 23,
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF172554),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _profileCard({required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(
+          color: const Color(0xFFE2E8F0),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF172554).withValues(alpha: 0.035),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildSkillChips(
+    String skillText,
+    Color backgroundColor,
+    Color textColor,
+    IconData icon,
+  ) {
+    final skillList = skillText
+        .split(',')
+        .map((skill) => skill.trim())
+        .where((skill) => skill.isNotEmpty)
+        .toList();
+
+    if (skillList.isEmpty) {
+      return const Text(
+        'No skills added yet',
+        style: TextStyle(color: Colors.grey),
+      );
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: skillList.map((skill) {
+        return Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 9,
+          ),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 15, color: textColor),
+              const SizedBox(width: 6),
+              Text(
+                skill,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
 }
+
+class _ProfileStat extends StatelessWidget {
+  final IconData icon;
+  final String value;
+  final String label;
+  final Color color;
+
+  const _ProfileStat({
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(11),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, color: color, size: 23),
+        ),
+        const SizedBox(height: 9),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 21,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF172554),
+          ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 11,
+            color: Color(0xFF64748B),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
  // ==================== SEARCH SCREEN ====================
 
 class SearchScreen extends StatefulWidget {
