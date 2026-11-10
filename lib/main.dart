@@ -1,1170 +1,2037 @@
-
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:video_player/video_player.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
-import 'dart:convert';
+import 'dart:async';
+import 'package:web_socket_channel/io.dart';
 
-void main() {
-  runApp(const SkillSwapApp());
-}
+const Color brand = Color(0xFF0F766E);
+const Color ink = Color(0xFF172554);
+
+void main() => runApp(const SkillSwapApp());
 
 class SkillSwapApp extends StatelessWidget {
   const SkillSwapApp({super.key});
-
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'SkillSwap',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0F766E),
-          brightness: Brightness.light,
-        ),
-        scaffoldBackgroundColor: const Color(0xFFF5F7FA),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFFF5F7FA),
-          foregroundColor: Color(0xFF172554),
-          elevation: 0,
-          centerTitle: false,
-        ),
-        cardTheme: CardThemeData(
-          color: Colors.white,
-          elevation: 1,
-          margin: const EdgeInsets.only(bottom: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-        ),
-        useMaterial3: true,
-      ),
-      home: const SessionGate(),
-    );
-  }
+  Widget build(BuildContext context) => MaterialApp(
+    title: 'SkillSwap', debugShowCheckedModeBanner: false,
+    theme: ThemeData(useMaterial3: true, colorScheme: ColorScheme.fromSeed(seedColor: brand), scaffoldBackgroundColor: const Color(0xFFF5F7FA), appBarTheme: const AppBarTheme(backgroundColor: Color(0xFFF5F7FA), foregroundColor: ink)),
+    home: const SessionGate(),
+  );
 }
 
 class SessionGate extends StatefulWidget {
   const SessionGate({super.key});
-
-  @override
-  State<SessionGate> createState() => _SessionGateState();
+  @override State<SessionGate> createState() => _SessionGateState();
 }
-
 class _SessionGateState extends State<SessionGate> {
-  late final Future<Map<String, dynamic>?> _session =
-      _loadSession();
-
-  Future<Map<String, dynamic>?> _loadSession() async {
+  late Future<Map<String,dynamic>?> session = _load();
+  Future<Map<String,dynamic>?> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString('skillswap_session');
-
-    if (saved == null) return null;
-
-    try {
-      return Map<String, dynamic>.from(
-        jsonDecode(saved) as Map,
-      );
-    } catch (_) {
-      await prefs.remove('skillswap_session');
-      return null;
-    }
+    final raw = prefs.getString('skillswap_session');
+    if (raw == null) return null;
+    try { return Map<String,dynamic>.from(jsonDecode(raw) as Map); }
+    catch (_) { await prefs.remove('skillswap_session'); return null; }
   }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<Map<String, dynamic>?>(
-      future: _session,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        final user = snapshot.data;
-        if (user == null) return const WelcomeScreen();
-
-        return HomeScreen(
-          userId: (user['userId'] ?? '').toString(),
-          name: (user['name'] ?? '').toString(),
-          email: (user['email'] ?? '').toString(),
-          teachSkill: (user['teachSkill'] ?? 'Not added yet').toString(),
-          learnSkill: (user['learnSkill'] ?? 'Not added yet').toString(),
-        );
-      },
-    );
-  }
+  @override Widget build(BuildContext context) => FutureBuilder<Map<String,dynamic>?>(future:session,builder:(context,s) {
+    if (s.connectionState != ConnectionState.done) return const Scaffold(body:Center(child:CircularProgressIndicator()));
+    if (s.data == null) return const AuthScreen();
+    return SocialHome(user: s.data!);
+  });
 }
 
-// ==================== WELCOME SCREEN ====================
-
-class WelcomeScreen extends StatelessWidget {
-  const WelcomeScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.swap_horiz,
-                size: 90,
-                color: Colors.indigo,
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'SkillSwap',
-                style: TextStyle(
-                  fontSize: 36,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.indigo,
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Learn. Teach. Swap Skills.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 18,
-                  color: Colors.grey,
-                ),
-              ),
-              const SizedBox(height: 50),
-
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            const LoginScreen(),
-                      ),
-                    );
-                  },
-                  child: const Text(
-                    'Login',
-                    style: TextStyle(fontSize: 18),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 15),
-
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: OutlinedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            const RegisterScreen(),
-                      ),
-                    );
-                  },
-                  child: const Text(
-                    'Create Account',
-                    style: TextStyle(fontSize: 18),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+class AuthScreen extends StatefulWidget {
+  const AuthScreen({super.key});
+  @override State<AuthScreen> createState() => _AuthScreenState();
 }
-
-// ==================== LOGIN SCREEN ====================
-
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
-
-  @override
-  State<LoginScreen> createState() =>
-      _LoginScreenState();
-}
-
-class _LoginScreenState extends State<LoginScreen> {
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
-
-  bool isLoading = false;
-
-  @override
-  void dispose() {
-    emailController.dispose();
-    passwordController.dispose();
-    super.dispose();
-  }
-
-  Future<void> loginUser() async {
-    final email = emailController.text.trim();
-    final password = passwordController.text;
-
-    if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please enter email and password.',
-          ),
-        ),
-      );
-      return;
-    }
-
+class _AuthScreenState extends State<AuthScreen> {
+  final email = TextEditingController(), password = TextEditingController(), name = TextEditingController(), username = TextEditingController(), teach = TextEditingController(text:'Other'), learn = TextEditingController(text:'Other');
+  bool registering = false, busy = false, obscure = true;
+  Timer? usernameTimer;
+  String usernameStatus = '';
+  bool checkingUsername = false;
+  @override void dispose(){
+  email.dispose();
+  password.dispose();
+  name.dispose();
+  username.dispose();
+  teach.dispose();
+  learn.dispose();
+  usernameTimer?.cancel();
+  super.dispose(); }
+  void onUsernameChanged(String value) {
+    usernameTimer?.cancel();
     setState(() {
-      isLoading = true;
+      usernameStatus = '';
+      checkingUsername = false;
     });
 
-    try {
-      final data = await ApiService.login(
-        email: email,
-        password: password,
-      );
-final user = Map<String, dynamic>.from(data['user']);
+    final value = username.text.trim();
 
-final prefs = await SharedPreferences.getInstance();
-await prefs.setString(
-  'skillswap_session',
-  jsonEncode({
-    'userId': (user['user_id'] ?? '').toString(),
-    'name': (user['full_name'] ?? email).toString(),
-    'email': (user['email'] ?? email).toString(),
-    'teachSkill': (user['teach_skill'] ?? 'Not added yet').toString(),
-    'learnSkill': (user['learn_skill'] ?? 'Not added yet').toString(),
-  }),
-);
-      if (!mounted) return;
+    if (value.length < 3) return;
 
+    setState(() => checkingUsername = true);
 
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(
-                builder: (context) => HomeScreen(
-                  userId: (data['user']['user_id'] ?? '').toString(),
-                  name: (data['user']['full_name'] ?? email).toString(),
-                  email: (data['user']['email'] ?? email).toString(),
-                  teachSkill:
-                      (data['user']['teach_skill'] ?? 'Not added yet').toString(),
-                  learnSkill:
-                      (data['user']['learn_skill'] ?? 'Not added yet').toString(),
-                ),
-              ),
-              (route) => false,
-            );
+    usernameTimer = Timer(const Duration(milliseconds: 500), () async {
+      try {
+        final result = await ApiService.checkUsername(value);
 
-    } catch (e) {
-      if (!mounted) return;
+        if (!mounted || username.text.trim() != value) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Login failed: ${e.toString().replaceFirst('Exception: ', '')}',
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) {
         setState(() {
-          isLoading = false;
+          checkingUsername = false;
+          usernameStatus = result['available'] == true
+              ? 'Username available'
+              : 'Username already taken';
+        });
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          checkingUsername = false;
+          usernameStatus = 'Could not check username';
         });
       }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Login'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.person,
-              size: 70,
-              color: Colors.indigo,
-            ),
-            const SizedBox(height: 25),
-
-            TextField(
-              controller: emailController,
-              keyboardType: TextInputType.emailAddress,
-              decoration: InputDecoration(
-                labelText: 'Email',
-                prefixIcon: const Icon(Icons.email),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 15),
-
-            TextField(
-              controller: passwordController,
-              obscureText: true,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                prefixIcon: const Icon(Icons.lock),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 25),
-
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: isLoading ? null : loginUser,
-                child: isLoading
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Text(
-                        'Login',
-                        style: TextStyle(fontSize: 18),
-                      ),
-              ),
-            ),
-
-            const SizedBox(height: 15),
-
-            TextButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        const RegisterScreen(),
-                  ),
-                );
-              },
-              child: const Text(
-                "Don't have an account? Register",
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ==================== REGISTER SCREEN ====================
-
-class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
-
-  @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
-}
-
-class _RegisterScreenState extends State<RegisterScreen> {
-  final nameController = TextEditingController();
-  final usernameController = TextEditingController();
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
-  final teachSkillController = TextEditingController();
-  final learnSkillController = TextEditingController();
-
-  bool isLoading = false;
-  bool isCheckingUsername = false;
-  bool? isUsernameAvailable;
-  String usernameMessage = '';
-
-  final List<String> skills = const [
-    'Programming',
-    'Web Development',
-    'Graphic Design',
-    'UI/UX Design',
-    'Video Editing',
-    'Photography',
-    'Digital Marketing',
-    'English',
-    'Mathematics',
-    'Other',
-  ];
-
-  @override
-  void dispose() {
-    nameController.dispose();
-    usernameController.dispose();
-    emailController.dispose();
-    passwordController.dispose();
-    teachSkillController.dispose();
-    learnSkillController.dispose();
-    super.dispose();
-  }
-
-  Future<void> checkUsernameAvailability(String value) async {
-    final username = value.trim();
-
-    if (username.isEmpty) {
-      setState(() {
-        isUsernameAvailable = null;
-        usernameMessage = '';
-        isCheckingUsername = false;
-      });
-      return;
-    }
-
-    setState(() {
-      isCheckingUsername = true;
-      isUsernameAvailable = null;
-      usernameMessage = 'Checking username...';
     });
-
-    try {
-      final data = await ApiService.checkUsername(username);
-
-      if (!mounted || usernameController.text.trim() != username) {
-        return;
-      }
-
-      setState(() {
-        isUsernameAvailable = data['available'] == true;
-        usernameMessage = data['message']?.toString() ?? '';
-      });
-    } catch (e) {
-      if (!mounted || usernameController.text.trim() != username) {
-        return;
-      }
-
-      setState(() {
-        isUsernameAvailable = null;
-        usernameMessage = 'Could not check username. Try again.';
-      });
-    } finally {
-      if (mounted && usernameController.text.trim() == username) {
-        setState(() {
-          isCheckingUsername = false;
-        });
-      }
-    }
   }
 
-  Future<void> registerUser() async {
-    final name = nameController.text.trim();
-    final username = usernameController.text.trim();
-    final email = emailController.text.trim();
-    final password = passwordController.text;
-    final teachSkill = teachSkillController.text.trim();
-    final learnSkill = learnSkillController.text.trim();
+Future<void> submit() async {
+  if (email.text.trim().isEmpty ||
+      password.text.isEmpty ||
+      (registering &&
+          (name.text.trim().isEmpty ||
+              username.text.trim().isEmpty))) {
+    _snack('Please complete the required fields.');
+    return;
+  }
 
-    if (name.isEmpty ||
-        username.isEmpty ||
-        email.isEmpty ||
-        password.isEmpty ||
-        teachSkill.isEmpty ||
-        learnSkill.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please fill in all fields.'),
-        ),
-      );
-      return;
-    }
+  if (registering && password.text.length < 6) {
+    _snack('Password must be at least 6 characters.');
+    return;
+  }
 
-    if (!email.contains('@') || !email.contains('.')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a valid email.'),
-        ),
-      );
-      return;
-    }
+  setState(() => busy = true);
 
-    if (password.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password must be at least 6 characters.'),
-        ),
-      );
-      return;
-    }
+  try {
+    if (registering) {
+      final check =
+          await ApiService.checkUsername(username.text.trim());
 
-    setState(() {
-      isCheckingUsername = true;
-    });
-
-    try {
-      final usernameData =
-          await ApiService.checkUsername(username);
-
-      if (!mounted) return;
-
-      if (usernameData['available'] != true) {
-        setState(() {
-          isCheckingUsername = false;
-          isUsernameAvailable = false;
-          usernameMessage = 'Username already exists';
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Username already exists. Choose another.',
-            ),
-          ),
-        );
-        return;
+      if (check['available'] != true) {
+        throw Exception('Username already exists. Choose another.');
       }
 
-      setState(() {
-        isUsernameAvailable = true;
-        usernameMessage = 'Username is available';
-        isCheckingUsername = false;
-        isLoading = true;
-      });
-
-      final data = await ApiService.register(
-        uniqueUsername: username,
-        email: email,
-        password: password,
-        fullName: name,
-        teachSkill: teachSkill,
-        learnSkill: learnSkill,
+      await ApiService.register(
+        uniqueUsername: username.text.trim(),
+        email: email.text.trim(),
+        password: password.text,
+        fullName: name.text.trim(),
+        teachSkill: teach.text.trim().isEmpty
+            ? 'Other'
+            : teach.text.trim(),
+        learnSkill: learn.text.trim().isEmpty
+            ? 'Other'
+            : learn.text.trim(),
       );
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Account created successfully!'),
-        ),
-      );
-
-      Navigator.pushAndRemoveUntil(
+      Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => HomeScreen(
-            userId: (data['user_id'] ?? '').toString(),
-            name: name,
-            email: email,
-            teachSkill: teachSkill,
-            learnSkill: learnSkill,
+          builder: (_) => EmailVerificationScreen(
+            email: email.text.trim(),
           ),
         ),
-        (route) => false,
       );
-    } catch (e) {
-      if (!mounted) return;
 
-      final errorMessage =
-          e.toString().replaceFirst('Exception: ', '');
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Registration failed: $errorMessage'),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-          isCheckingUsername = false;
-        });
-      }
+      return;
     }
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Create Account'),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-
-            const Icon(
-              Icons.person_add,
-              size: 70,
-              color: Colors.indigo,
-            ),
-
-            const SizedBox(height: 25),
-
-            TextField(
-              controller: nameController,
-              decoration: InputDecoration(
-                labelText: 'Full Name',
-                prefixIcon: const Icon(Icons.person),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 15),
-
-            TextField(
-              controller: usernameController,
-              onChanged: checkUsernameAvailability,
-              decoration: InputDecoration(
-                labelText: 'Unique Username',
-                hintText: 'Example: sanjida123',
-                prefixIcon: const Icon(Icons.alternate_email),
-                suffixIcon: isCheckingUsername
-                    ? const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
-                        ),
-                      )
-                    : isUsernameAvailable == null
-                        ? null
-                        : Icon(
-                            isUsernameAvailable!
-                                ? Icons.check_circle
-                                : Icons.cancel,
-                            color: isUsernameAvailable!
-                                ? Colors.green
-                                : Colors.red,
-                          ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-
-            if (usernameMessage.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(
-                  top: 6,
-                  left: 8,
-                ),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    usernameMessage,
-                    style: TextStyle(
-                      color: isUsernameAvailable == true
-                          ? Colors.green
-                          : isUsernameAvailable == false
-                              ? Colors.red
-                              : Colors.grey,
-                    ),
-                  ),
-                ),
-              ),
-
-            const SizedBox(height: 15),
-
-            TextField(
-              controller: emailController,
-              keyboardType: TextInputType.emailAddress,
-              decoration: InputDecoration(
-                labelText: 'Email',
-                prefixIcon: const Icon(Icons.email),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 15),
-
-            TextField(
-              controller: passwordController,
-              obscureText: true,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                prefixIcon: const Icon(Icons.lock),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 15),
-
-                        Autocomplete<String>(
-                          optionsBuilder: (TextEditingValue value) {
-                            if (value.text.isEmpty) {
-                              return skills;
-                            }
-
-                            return skills.where(
-                              (skill) => skill.toLowerCase().contains(
-                                value.text.toLowerCase(),
-                              ),
-                            );
-                          },
-                          onSelected: (value) {
-                            teachSkillController.text = value;
-                          },
-                          fieldViewBuilder: (
-                            context,
-                            textEditingController,
-                            focusNode,
-                            onFieldSubmitted,
-                          ) {
-                            return TextField(
-                              controller: textEditingController,
-                              focusNode: focusNode,
-                              onChanged: (value) {
-                                teachSkillController.text = value;
-                              },
-                              onSubmitted: (_) => onFieldSubmitted(),
-                              decoration: InputDecoration(
-                                labelText: 'Skill I Can Teach',
-                                hintText: 'Type or select a skill',
-                                prefixIcon: const Icon(Icons.school),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-
-                        const SizedBox(height: 15),
-
-                        Autocomplete<String>(
-                          optionsBuilder: (TextEditingValue value) {
-                            if (value.text.isEmpty) {
-                              return skills;
-                            }
-
-                            return skills.where(
-                              (skill) => skill.toLowerCase().contains(
-                                value.text.toLowerCase(),
-                              ),
-                            );
-                          },
-                          onSelected: (value) {
-                            learnSkillController.text = value;
-                          },
-                          fieldViewBuilder: (
-                            context,
-                            textEditingController,
-                            focusNode,
-                            onFieldSubmitted,
-                          ) {
-                            return TextField(
-                              controller: textEditingController,
-                              focusNode: focusNode,
-                              onChanged: (value) {
-                                learnSkillController.text = value;
-                              },
-                              onSubmitted: (_) => onFieldSubmitted(),
-                              decoration: InputDecoration(
-                                labelText: 'Skill I Want to Learn',
-                                hintText: 'Type or select a skill',
-                                prefixIcon: const Icon(Icons.auto_stories),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-
-                        const SizedBox(height: 25),
-
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: isLoading ? null : registerUser,
-                child: isLoading
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Text(
-                        'Register',
-                        style: TextStyle(fontSize: 18),
-                      ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    final data = await ApiService.login(
+      email: email.text.trim(),
+      password: password.text,
     );
+
+    final user = Map<String, dynamic>.from(data['user'] as Map);
+
+    final sessionData = {
+      'userId': '${user['user_id'] ?? ''}',
+      'name': '${user['full_name'] ?? name.text}',
+      'username': '${user['unique_username'] ?? username.text}',
+      'email': '${user['email'] ?? email.text}',
+      'teachSkill': '${user['teach_skill'] ?? 'Not added yet'}',
+      'learnSkill': '${user['learn_skill'] ?? 'Not added yet'}',
+    };
+
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setString(
+      'skillswap_session',
+      jsonEncode(sessionData),
+    );
+
+    if (!mounted) return;
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => SocialHome(user: sessionData),
+      ),
+      (_) => false,
+    );
+  } catch (e) {
+    _snack(e.toString().replaceFirst('Exception: ', ''));
+  } finally {
+    if (mounted) {
+      setState(() => busy = false);
+    }
   }
 }
 
-// ==================== HOME SCREEN ====================
+  void _snack(String s){ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(s)));}
+  @override Widget build(BuildContext context)=>Scaffold(body:SafeArea(child:Center(child:SingleChildScrollView(padding:const EdgeInsets.all(24),child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:480),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+    const Icon(Icons.swap_horiz_rounded,size:68,color:brand),const SizedBox(height:8),const Text('SkillSwap',textAlign:TextAlign.center,style:TextStyle(fontSize:32,fontWeight:FontWeight.bold,color:ink)),const SizedBox(height:4),const Text('Learn. Teach. Connect.',textAlign:TextAlign.center,style:TextStyle(color:Colors.blueGrey)),const SizedBox(height:28),
+    SegmentedButton<bool>(segments:const [ButtonSegment(value:false,label:Text('Login'),icon:Icon(Icons.login)),ButtonSegment(value:true,label:Text('Create account'),icon:Icon(Icons.person_add_alt_1))],selected:{registering},onSelectionChanged:(v)=>setState(()=>registering=v.first)),const SizedBox(height:20),
+    if(registering)...[_field(name,'Full name',Icons.person),const SizedBox(height:12),Column(
+                                                                                         crossAxisAlignment: CrossAxisAlignment.start,
+                                                                                         children: [
+                                                                                           TextField(
+                                                                                             controller: username,
+                                                                                             onChanged: onUsernameChanged,
+                                                                                             decoration: InputDecoration(
+                                                                                               labelText: 'Username',
+                                                                                               prefixIcon: const Icon(Icons.alternate_email),
+                                                                                               suffixIcon: checkingUsername
+                                                                                                   ? const Padding(
+                                                                                                       padding: EdgeInsets.all(12),
+                                                                                                       child: SizedBox(
+                                                                                                         width: 18,
+                                                                                                         height: 18,
+                                                                                                         child: CircularProgressIndicator(strokeWidth: 2),
+                                                                                                       ),
+                                                                                                     )
+                                                                                                   : null,
+                                                                                               border: OutlineInputBorder(
+                                                                                                 borderRadius: BorderRadius.circular(14),
+                                                                                               ),
+                                                                                             ),
+                                                                                           ),
+                                                                                           if (usernameStatus.isNotEmpty)
+                                                                                             Padding(
+                                                                                               padding: const EdgeInsets.only(top: 6, left: 12),
+                                                                                               child: Text(
+                                                                                                 usernameStatus,
+                                                                                                 style: TextStyle(
+                                                                                                   color: usernameStatus == 'Username available'
+                                                                                                       ? Colors.green
+                                                                                                       : Colors.red,
+                                                                                                 ),
+                                                                                               ),
+                                                                                             ),
+                                                                                         ],
+                                                                                       )],
+    if(registering)const SizedBox(height:12),_field(email,'Email',Icons.email,keyboard:TextInputType.emailAddress),const SizedBox(height:12),TextField(controller:password,obscureText:obscure,decoration:InputDecoration(labelText:'Password',prefixIcon:const Icon(Icons.lock_outline),suffixIcon:IconButton(onPressed:()=>setState(()=>obscure=!obscure),icon:Icon(obscure?Icons.visibility:Icons.visibility_off)),border:OutlineInputBorder(borderRadius:BorderRadius.circular(14)))),
+    if(registering)...[const SizedBox(height:12),_field(teach,'Skill I can teach',Icons.school),const SizedBox(height:12),_field(learn,'Skill I want to learn',Icons.auto_stories)],const SizedBox(height:22),FilledButton(onPressed:busy?null:submit,style:FilledButton.styleFrom(minimumSize:const Size.fromHeight(52)),child:busy?const SizedBox(width:22,height:22,child:CircularProgressIndicator(strokeWidth:2)):Text(registering?'Create account':'Login')),const SizedBox(height:12),const Text('Connect with learners, share your skills, and grow together.',textAlign:TextAlign.center,style:TextStyle(color:Colors.blueGrey)),
+  ]))))));
+  Widget _field(TextEditingController c,String label,IconData icon,{TextInputType? keyboard})=>TextField(controller:c,keyboardType:keyboard,decoration:InputDecoration(labelText:label,prefixIcon:Icon(icon),border:OutlineInputBorder(borderRadius:BorderRadius.circular(14))));
+}
 
-
-class HomeScreen extends StatelessWidget {
-  final String userId;
-  final String name;
+class EmailVerificationScreen extends StatefulWidget {
   final String email;
-  final String teachSkill;
-  final String learnSkill;
 
-  const HomeScreen({
+  const EmailVerificationScreen({
     super.key,
-    required this.userId,
-    required this.name,
     required this.email,
-    required this.teachSkill,
-    required this.learnSkill,
   });
 
   @override
+  State<EmailVerificationScreen> createState() =>
+      _EmailVerificationScreenState();
+}
+
+class _EmailVerificationScreenState
+    extends State<EmailVerificationScreen> {
+  final otpController = TextEditingController();
+
+  bool sending = false;
+  bool verifying = false;
+  String message = 'Sending verification code...';
+
+  @override
+  void initState() {
+    super.initState();
+    sendOtp();
+  }
+
+  @override
+  void dispose() {
+    otpController.dispose();
+    super.dispose();
+  }
+
+  Future<void> sendOtp() async {
+    if (sending) return;
+
+    setState(() {
+      sending = true;
+      message = 'Sending verification code...';
+    });
+
+    try {
+      await ApiService.sendEmailOTP(email: widget.email);
+
+      if (!mounted) return;
+
+      setState(() {
+        message = 'A 6-digit verification code has been sent to your email.';
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        message = e.toString().replaceFirst('Exception: ', '');
+      });
+    } finally {
+      if (mounted) setState(() => sending = false);
+    }
+  }
+
+  Future<void> verifyOtp() async {
+    final code = otpController.text.trim();
+
+    if (code.length != 6 || int.tryParse(code) == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid 6-digit OTP.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => verifying = true);
+
+    try {
+      await ApiService.verifyEmailOTP(
+        email: widget.email,
+        otp: code,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Email verified successfully. Please log in.'),
+        ),
+      );
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => const AuthScreen(),
+        ),
+        (_) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => verifying = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    const navy = Color(0xFF172554);
-    const teal = Color(0xFF0F766E);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Email Verification'),
+      ),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Icon(
+                    Icons.mark_email_read_outlined,
+                    size: 75,
+                    color: brand,
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Verify your email',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 25,
+                      fontWeight: FontWeight.bold,
+                      color: ink,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'We sent a verification code to:\n${widget.email}',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.blueGrey),
+                  ),
+                  const SizedBox(height: 24),
+                  TextField(
+                    controller: otpController,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 25,
+                      letterSpacing: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Enter 6-digit OTP',
+                      border: OutlineInputBorder(),
+                      counterText: '',
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  FilledButton(
+                    onPressed: verifying ? null : verifyOtp,
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                    ),
+                    child: verifying
+                        ? const CircularProgressIndicator()
+                        : const Text('Verify Email'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: sending ? null : sendOtp,
+                    child: Text(
+                      sending ? 'Sending...' : 'Resend OTP',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class SocialHome extends StatefulWidget {
+  final Map<String,dynamic> user;
+  const SocialHome({super.key,required this.user});
+  @override State<SocialHome> createState()=>_SocialHomeState();
+}
+
+class _SocialHomeState extends State<SocialHome> {
+  int index = 0;
+  int refresh = 0;
+
+  void reload() => setState(() => refresh++);
+
+  @override
+  Widget build(BuildContext context) {
+    final pages = <Widget>[
+      FeedScreen(
+        user: widget.user,
+        key: ValueKey('feed$refresh'),
+        onChanged: reload,
+      ),
+      RequestsScreen(
+        user: widget.user,
+        key: ValueKey('requests$refresh'),
+      ),
+      NotificationsScreen(
+        user: widget.user,
+        key: ValueKey('notifications$refresh'),
+      ),
+      MyProfileScreen(
+        user: widget.user,
+        key: ValueKey('profile$refresh'),
+        onLogout: logout,
+      ),
+      MessagesScreen(
+        user: widget.user,
+        key: ValueKey('messages$refresh'),
+      ),
+      PeopleScreen(
+        user: widget.user,
+        key: ValueKey('people$refresh'),
+      ),
+      SettingsScreen(
+        user: widget.user,
+        key: ValueKey('settings$refresh'),
+        onLogout: logout,
+      ),
+    ];
 
     return Scaffold(
       appBar: AppBar(
         title: const Text(
           'SkillSwap',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(fontWeight: FontWeight.bold, color: brand),
         ),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: CircleAvatar(
-              backgroundColor: const Color(0xFFD1FAE5),
-              child: Text(
-                name.isNotEmpty ? name[0].toUpperCase() : 'S',
-                style: const TextStyle(
-                  color: teal,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
+          IconButton(
+            tooltip: 'Messenger',
+            onPressed: () => setState(() => index = 4),
+            icon: const Icon(Icons.chat_bubble_outline),
           ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF0F766E), Color(0xFF164E63)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(
-                    Icons.waving_hand_rounded,
-                    color: Colors.white,
-                    size: 30,
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    'Welcome, $name!',
-                    style: const TextStyle(
-                      fontSize: 25,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Learn something new. Share what you know.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.white,
-                    ),
-                  ),
-
-                ],
-              ),
-            ),
-            const SizedBox(height: 28),
-            Text(
-              'Your learning journey',
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: navy,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Share your strengths and discover new ones.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: Colors.blueGrey,
-              ),
-            ),
-            const SizedBox(height: 18),
-            _DashboardCard(
-              icon: Icons.travel_explore_rounded,
-              color: const Color(0xFF0F766E),
-              title: 'Find a Skill',
-              subtitle: 'Discover skills and search for teachers.',
-              onTap: () {
+          PopupMenuButton<String>(
+            tooltip: 'Search',
+            icon: const Icon(Icons.search),
+            onSelected: (value) {
+              if (value == 'people') {
+                setState(() => index = 5);
+              } else {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const SearchScreen(),
+                    builder: (_) => SkillSearchScreen(user: widget.user),
                   ),
                 );
-              },
-            ),
-            _DashboardCard(
-              icon: Icons.auto_stories_rounded,
-              color: const Color(0xFF6D5BD0),
-              title: 'My Skills',
-              subtitle: 'Teach: $teachSkill\nLearn: $learnSkill',
-              onTap: () async {
-                final result = await Navigator.push<Map<String, String>>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => MySkillsScreen(
-                      userId: userId,
-                      teachSkill: teachSkill,
-                      learnSkill: learnSkill,
-                    ),
-                  ),
-                );
-
-                if (result != null && context.mounted) {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => HomeScreen(
-                        userId: userId,
-                        name: name,
-                        email: email,
-                        teachSkill: result['teachSkill'] ?? teachSkill,
-                        learnSkill: result['learnSkill'] ?? learnSkill,
-                      ),
-                    ),
-                  );
-                }
-              },
-            ),
-
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE6FFFA),
-                borderRadius: BorderRadius.circular(18),
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'people',
+                child: Text('Search People'),
               ),
-              child: const Row(
-                children: [
-                  Icon(Icons.lightbulb_outline, color: teal, size: 28),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Every skill is worth sharing. Keep learning!',
-                      style: TextStyle(
-                        color: Color(0xFF115E59),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
+              PopupMenuItem(
+                value: 'skills',
+                child: Text('Search Skills'),
               ),
-            ),
-          ],
-        ),
-      ),
-
-bottomNavigationBar: BottomNavigationBar(
-  currentIndex: 0,
-  selectedItemColor: teal,
-  unselectedItemColor: Colors.blueGrey,
-  type: BottomNavigationBarType.fixed,
-  onTap: (index) {
-    if (index == 1) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ProfileScreen(
-            userId: userId,
-            name: name,
-            email: email,
-            teachSkill: teachSkill,
-            learnSkill: learnSkill,
+            ],
           ),
-        ),
-      );
-    }
-  },
-  items: const [
-    BottomNavigationBarItem(
-      icon: Icon(Icons.home_rounded),
-      label: 'Home',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.person_rounded),
-      label: 'Profile',
-    ),
-  ],
-),
+          IconButton(
+            tooltip: 'Settings',
+            onPressed: () => setState(() => index = 6),
+            icon: const Icon(Icons.settings_outlined),
+          ),
+        ],
+      ),
+      body: pages[index],
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: index < 4 ? index : 0,
+        onDestinationSelected: (v) => setState(() => index = v),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_add_alt_outlined),
+            selectedIcon: Icon(Icons.person_add_alt),
+            label: 'Requests',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.notifications_outlined),
+            selectedIcon: Icon(Icons.notifications),
+            label: 'Notifications',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.account_circle_outlined),
+            selectedIcon: Icon(Icons.account_circle),
+            label: 'Profile',
+          ),
+        ],
+      ),
+    );
+  }
 
+  Future<void> logout() async {
+    final p = await SharedPreferences.getInstance();
+    await p.remove('skillswap_session');
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AuthScreen()),
+      (_) => false,
     );
   }
 }
 
-class _DashboardCard extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  const _DashboardCard({
-    required this.icon,
-    required this.color,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 14),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 12,
-        ),
-        leading: Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(15),
-          ),
-          child: Icon(icon, color: color, size: 27),
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 5),
-          child: Text(subtitle),
-        ),
-        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
-        onTap: onTap,
-      ),
-    );
-  }
-}
-
-
-class MySkillsScreen extends StatefulWidget {
-  final String userId;
-  final String teachSkill;
-  final String learnSkill;
-
-  const MySkillsScreen({
-    super.key,
-    required this.userId,
-    required this.teachSkill,
-    required this.learnSkill,
-  });
-
-  @override
-  State<MySkillsScreen> createState() => _MySkillsScreenState();
-}
-
-class _MySkillsScreenState extends State<MySkillsScreen> {
-  late final TextEditingController teachController;
-  late final TextEditingController learnController;
-  bool isSaving = false;
-
+class FeedScreen extends StatefulWidget { final Map<String,dynamic> user; final VoidCallback onChanged; const FeedScreen({super.key,required this.user,required this.onChanged}); @override State<FeedScreen> createState()=>_FeedScreenState(); }
+class _FeedScreenState extends State<FeedScreen>{
+  final composer = TextEditingController();
+  List<dynamic> posts = [];
+  bool loading = true, sending = false;
+  String? error;
+  List<File> images = [];
+  String postPrivacy = 'public';
+  String get uid=>'${widget.user['userId']??''}';
+  IOWebSocketChannel? _feedSocket;
+  StreamSubscription? _feedSocketSubscription;
   @override
   void initState() {
     super.initState();
-    teachController = TextEditingController(text: widget.teachSkill);
-    learnController = TextEditingController(text: widget.learnSkill);
+    load();
+    _connectFeedSocket();
+  }
+  Future<void> _connectFeedSocket() async {
+    try {
+      final channel = await ApiService.connectFeedSocket();
+
+      if (!mounted) {
+        channel.sink.close();
+        return;
+      }
+
+      _feedSocket = channel;
+
+      _feedSocketSubscription = channel.stream.listen(
+        (event) {
+          if (!mounted) return;
+
+          try {
+            final data = jsonDecode(event.toString());
+            final postId = '${data['post_id']}';
+            final type = data['type'];
+
+            final index = posts.indexWhere(
+              (post) => '${post['post_id']}' == postId,
+            );
+
+            if (index == -1) return;
+
+            setState(() {
+              if (type == 'post_reaction') {
+                posts[index]['like_count'] = data['like_count'];
+                posts[index]['dislike_count'] = data['dislike_count'];
+              } else if (type == 'new_comment') {
+                final current =
+                    int.tryParse('${posts[index]['comment_count'] ?? 0}') ?? 0;
+
+                posts[index]['comment_count'] = current + 1;
+              }
+            });
+          } catch (_) {}
+        },
+        onError: (_) {},
+      );
+    } catch (_) {}
   }
 
   @override
   void dispose() {
-    teachController.dispose();
-    learnController.dispose();
+    _feedSocketSubscription?.cancel();
+    _feedSocket?.sink.close();
+    composer.dispose();
+    super.dispose();
+  }
+  Future<void> load() async { setState(() => loading = true); try { final d = await ApiService.getFeed(uid); if (!mounted) return; setState(() { posts = (d['posts'] as List?) ?? []; loading = false; error = null; }); } catch (e) { if (!mounted) return; setState(() { loading = false; error = e.toString(); }); } }
+    Future<void> pickImage() async {
+      final choice = await showModalBottomSheet<String>(
+        context: context,
+        builder: (context) => SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Choose multiple photos'),
+                onTap: () => Navigator.pop(context, 'photos'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.video_library_outlined),
+                title: const Text('Choose a video'),
+                onTap: () => Navigator.pop(context, 'video'),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (choice == null) return;
+
+      if (choice == 'photos') {
+        final selected = await ImagePicker().pickMultiImage(
+          imageQuality: 82,
+        );
+
+        if (selected.isNotEmpty && mounted) {
+          setState(() {
+            images.addAll(selected.map((x) => File(x.path)));
+          });
+        }
+      } else {
+        final selected = await ImagePicker().pickVideo(
+          source: ImageSource.gallery,
+        );
+
+        if (selected != null && mounted) {
+          setState(() {
+            images.add(File(selected.path));
+          });
+        }
+      }
+    }
+  Future<void> publish() async {
+    if (composer.text.trim().isEmpty && images.isEmpty) return;
+
+    setState(() => sending = true);
+
+    try {
+      String imageUrl = '';
+
+      final result = await ApiService.createPost(
+        uid,
+        composer.text.trim(),
+        imageUrl: imageUrl,
+        privacy: postPrivacy,
+      );
+
+      final postId = '${result['post_id'] ?? ''}';
+
+      if (postId.isEmpty) {
+        throw Exception('Post create failed: post ID missing');
+      }
+
+      for (final file in images) {
+        final uploaded = await ApiService.uploadPostMedia(uid, file);
+        final fileUrl = '${uploaded['url'] ?? ''}';
+        final fileType = '${uploaded['file_type'] ?? ''}';
+
+        if (fileUrl.isEmpty || fileType.isEmpty) {
+          throw Exception('A media file upload failed');
+        }
+
+        await ApiService.attachPostMedia(
+          postId: postId,
+          userId: uid,
+          fileUrl: fileUrl,
+          fileType: fileType,
+        );
+      }
+
+      composer.clear();
+
+      if (mounted) {
+        setState(() {
+          images.clear();
+        });
+      }
+
+      await load();
+    } catch (e) {
+      _snack(e.toString());
+    } finally {
+      if (mounted) setState(() => sending = false);
+    }
+  }
+  Future<void> react(
+    Map<String, dynamic> p,
+    String reaction,
+  ) async {
+    try {
+      await ApiService.react(
+        '${p['post_id']}',
+        uid,
+        reaction,
+      );
+      await load();
+    } catch (e) {
+      _snack(e.toString());
+    }
+  }
+  Future<void> comments(Map<String,dynamic> p)async{await showModalBottomSheet(context:context,isScrollControlled:true,builder:(_)=>CommentsSheet(post:p,user:widget.user));await load();}
+  Future<void> editPost(Map<String, dynamic> post) async {
+    final controller = TextEditingController(
+      text: '${post['content'] ?? ''}',
+    );
+
+    final updatedContent = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit post'),
+        content: TextField(
+          controller: controller,
+          maxLines: 5,
+          maxLength: 5000,
+          decoration: const InputDecoration(
+            hintText: 'Write your post...',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+              context,
+              controller.text.trim(),
+            ),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+
+
+    if (updatedContent == null) return;
+
+    try {
+      await ApiService.updatePost(
+        '${post['post_id']}',
+        userId: uid,
+        content: updatedContent,
+        privacy: '${post['privacy'] ?? 'public'}',
+      );
+
+      await load();
+
+      if (mounted) _snack('Post updated successfully.');
+    } catch (e) {
+      if (mounted) _snack(e.toString());
+    }
+  }
+  Future<void> deletePost(Map<String, dynamic> post) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete post?'),
+        content: const Text('Are you sure you want to delete this post?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await ApiService.deletePost('${post['post_id']}', uid);
+      await load();
+      if (mounted) _snack('Post deleted successfully.');
+    } catch (e) {
+      if (mounted) _snack(e.toString());
+    }
+  }
+  void _snack(String s)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(s.replaceFirst('Exception: ',''))));
+  @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('SkillSwap',style:TextStyle(fontWeight:FontWeight.bold,color:brand)),actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),body:RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(14,8,14,24),children:[
+    Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Row(children:[const CircleAvatar(child:Icon(Icons.person)),const SizedBox(width:10),Expanded(child:Text('What would you like to share, ${widget.user['name']??'learner'}?',style:const TextStyle(fontWeight:FontWeight.w600)))]),const SizedBox(height:12),TextField(controller:composer,minLines:2,maxLines:5,maxLength:5000,decoration:const InputDecoration(hintText:'Share a skill, question, progress or idea...',border:OutlineInputBorder())),
+    const SizedBox(height: 10),
+    DropdownButtonFormField<String>(
+      initialValue: postPrivacy,
+      decoration: const InputDecoration(
+        labelText: 'Post audience',
+        border: OutlineInputBorder(),
+      ),
+      items: const [
+        DropdownMenuItem(value: 'public', child: Text('Public')),
+        DropdownMenuItem(value: 'followers', child: Text('Followers')),
+        DropdownMenuItem(value: 'private', child: Text('Only me')),
+      ],
+      onChanged: (value) {
+        if (value != null) setState(() => postPrivacy = value);
+      },
+    ),
+    if (images.isNotEmpty)
+      Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (int i = 0; i < images.length; i++)
+              Chip(
+                avatar: const Icon(Icons.perm_media_outlined),
+                label: Text('Media ${i + 1}'),
+                onDeleted: () => setState(() => images.removeAt(i)),
+              ),
+          ],
+        ),
+      ),
+      Row(children:[TextButton.icon(onPressed:pickImage,icon:const Icon(Icons.image_outlined),label:const Text('Photo')),const Spacer(),FilledButton.icon(onPressed:sending?null:publish,icon:const Icon(Icons.send),label:Text(sending?'Posting...':'Post'))])]))),
+    if(loading)const Padding(padding:EdgeInsets.all(30),child:Center(child:CircularProgressIndicator())),if(error!=null)Card(child:ListTile(leading:const Icon(Icons.error_outline,color:Colors.red),title:const Text('Could not load feed'),subtitle:Text(error!),trailing:IconButton(onPressed:load,icon:const Icon(Icons.refresh)))),if(!loading&&error==null&&posts.isEmpty)const Card(child:Padding(padding:EdgeInsets.all(28),child:Column(children:[Icon(Icons.forum_outlined,size:42,color:brand),SizedBox(height:10),Text('Your feed is ready',style:TextStyle(fontWeight:FontWeight.bold,fontSize:18)),SizedBox(height:5),Text('Create the first post or discover people to follow.',textAlign:TextAlign.center)]))),
+    ...posts.map((raw){final p=Map<String,dynamic>.from(raw as Map);return PostCard(post:p,user:widget.user,onReact: (reaction) => react(p, reaction),onComments:()=>comments(p),
+                                                                                                                                 onEdit: () => editPost(p),
+                                                                                                                                 onDelete: () => deletePost(p),
+                                                                                                                                 onProfile:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>PublicProfileScreen(targetId:'${p['user_id']}',user:widget.user))));}),
+  ])));
+}
+
+class PostCard extends StatelessWidget {
+  final Map<String,dynamic> post;
+  final Map<String,dynamic> user;
+  final void Function(String) onReact;
+  final VoidCallback onComments,onProfile;
+  final VoidCallback? onEdit,onDelete;
+  const PostCard({
+    super.key,
+    required this.post,
+    required this.user,
+    required this.onReact,
+    required this.onComments,
+    required this.onProfile,
+    this.onEdit,
+    this.onDelete,
+  });
+  @override Widget build(BuildContext context){final pic=ApiService.imageUrl(post['profile_picture_url']?.toString());final img=ApiService.imageUrl(post['image_url']?.toString());return Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Row(children:[GestureDetector(onTap:onProfile,child:CircleAvatar(backgroundImage:pic.isNotEmpty?NetworkImage(pic):null,child:pic.isEmpty?const Icon(Icons.person):null)),const SizedBox(width:10),Expanded(child:InkWell(onTap:onProfile,child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('${post['full_name']??post['unique_username']??'SkillSwap user'}',style:const TextStyle(fontWeight:FontWeight.bold)),Text('@${post['unique_username']??'user'} · ${_date(post['created_at'])}',style:Theme.of(context).textTheme.bodySmall)]))),
+  PopupMenuButton<String>(
+    icon: const Icon(Icons.more_horiz),
+    onSelected: (value) {
+      if (value == 'edit') {
+        onEdit?.call();
+      } else if (value == 'delete') {
+        onDelete?.call();
+      }
+    },
+    itemBuilder: (context) => [
+      if ('${post['user_id']}' == '${user['userId'] ?? ''}') ...[
+        const PopupMenuItem(
+          value: 'edit',
+          child: Text('Edit post'),
+        ),
+        const PopupMenuItem(
+          value: 'delete',
+          child: Text('Delete post'),
+        ),
+      ],
+    ],
+  )
+  ]),
+  if('${post['content']??''}'.trim().isNotEmpty)Padding(padding:const EdgeInsets.symmetric(vertical:13),child:Text('${post['content']}',style:const TextStyle(fontSize:15,height:1.4))),
+
+if (post['media'] is List && (post['media'] as List).isNotEmpty)
+  _PostMediaGrid(
+    media: (post['media'] as List)
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList(),
+  )
+else if (img.isNotEmpty)
+  ClipRRect(
+    borderRadius: BorderRadius.circular(12),
+    child: Image.network(
+      img,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) =>
+          const Text('Image unavailable'),
+    ),
+  ),
+
+    Row(
+      children: [
+        InkWell(
+          onTap: () => onReact('like'),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              '👍 ${post['like_count'] ?? 0}',
+              style: TextStyle(
+                color: post['my_reaction'] == 'like'
+                    ? Colors.blue
+                    : null,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        InkWell(
+          onTap: () => onReact('dislike'),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              '👎 ${post['dislike_count'] ?? 0}',
+              style: TextStyle(
+                color: post['my_reaction'] == 'dislike'
+                    ? Colors.red
+                    : null,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ),
+        const Spacer(),
+        InkWell(
+          onTap: onComments,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              '${post['comment_count'] ?? 0} comments',
+            ),
+          ),
+        ),
+      ],
+    ),
+  ])));}
+  static String _date(dynamic v){if(v==null)return 'now';try{final d=DateTime.parse(v.toString()).toLocal();return '${d.day}/${d.month}/${d.year}';}catch(_){return '';}}
+}
+
+
+class _PostMediaGrid extends StatelessWidget {
+  final List<Map<String, dynamic>> media;
+
+  const _PostMediaGrid({required this.media});
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = media.take(4).toList();
+
+    Widget tile(Map<String, dynamic> item, {int extra = 0}) {
+      final url = ApiService.imageUrl(item['file_url']?.toString());
+      final type = '${item['file_type'] ?? ''}'.toLowerCase();
+      final isVideo = type.startsWith('video/') ||
+          type == 'application/octet-stream' &&
+              RegExp(r'\.(mp4|mov|m4v|webm|3gp)$', caseSensitive: false)
+                  .hasMatch(url);
+
+      if (isVideo) {
+        return PostVideoPlayer(url: url);
+      }
+
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.network(
+            url,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => const Center(
+              child: Icon(Icons.broken_image_outlined),
+            ),
+          ),
+          if (extra > 0)
+            Container(
+              color: Colors.black54,
+              alignment: Alignment.center,
+              child: Text(
+                '+$extra',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 30,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+        ],
+      );
+    }
+
+    if (media.length == 1) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: AspectRatio(
+          aspectRatio: 4 / 3,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: tile(media.first),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: SizedBox(
+        height: 260,
+        child: GridView.builder(
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: visible.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: media.length == 2 ? 2 : 2,
+            crossAxisSpacing: 3,
+            mainAxisSpacing: 3,
+            childAspectRatio: 1,
+          ),
+          itemBuilder: (context, index) {
+            final extra = index == 3 && media.length > 4
+                ? media.length - 4
+                : 0;
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: tile(visible[index], extra: extra),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+
+
+
+class PostVideoPlayer extends StatefulWidget {
+  final String url;
+  final bool fullscreen;
+
+  const PostVideoPlayer({
+    super.key,
+    required this.url,
+    this.fullscreen = false,
+  });
+
+  @override
+  State<PostVideoPlayer> createState() => _PostVideoPlayerState();
+}
+
+class _PostVideoPlayerState extends State<PostVideoPlayer> {
+  late final VideoPlayerController controller;
+  String? errorMessage;
+  bool controlsVisible = true;
+
+  void toggleControls() {
+    setState(() {
+      controlsVisible = !controlsVisible;
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    controller = VideoPlayerController.networkUrl(
+      Uri.parse(widget.url),
+    );
+
+    controller.initialize().then((_) async {
+      if (!mounted) return;
+      await controller.setLooping(false);
+      if (mounted) setState(() {});
+    }).catchError((error) {
+      if (!mounted) return;
+      setState(() {
+        errorMessage = 'Video could not be loaded';
+      });
+    });
+  }
+
+  String formatDuration(Duration duration) {
+    final minutes = duration.inMinutes;
+    final seconds = duration.inSeconds % 60;
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  void togglePlay() async {
+    debugPrint('NORMAL PLAY BUTTON PRESSED');
+
+    if (!controller.value.isInitialized) {
+      debugPrint('VIDEO NOT INITIALIZED');
+      return;
+    }
+
+    try {
+      if (controller.value.isPlaying) {
+        await controller.pause();
+        debugPrint('VIDEO PAUSED');
+      } else {
+        await controller.play();
+        debugPrint('VIDEO PLAYING');
+      }
+    } catch (e) {
+      debugPrint('VIDEO PLAY ERROR: $e');
+    }
+  }
+
+  Future<void> openFullscreen() async {
+    if (!controller.value.isInitialized) return;
+
+    await controller.pause();
+    if (!mounted) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => FullscreenPostVideo(url: widget.url),
+      ),
+    );
+
+    if (mounted && controller.value.isInitialized) {
+      setState(() {});
+    }
+  }
+
+  Widget buildVideo() {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, child) {
+        final value = controller.value;
+
+        if (errorMessage != null || value.hasError) {
+          return Container(
+            height: 220,
+            color: Colors.black,
+            alignment: Alignment.center,
+            child: const Text(
+              'Unable to play this video',
+              style: TextStyle(color: Colors.white),
+            ),
+          );
+        }
+
+        if (!value.isInitialized) {
+          return Container(
+            height: 220,
+            color: Colors.black,
+            alignment: Alignment.center,
+            child: const CircularProgressIndicator(
+              color: Colors.white,
+            ),
+          );
+        }
+
+        return AspectRatio(
+          aspectRatio: value.aspectRatio > 0
+              ? value.aspectRatio
+              : 16 / 9,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Only the video surface handles play/pause taps.
+              GestureDetector(
+                onTap: toggleControls,
+                child: Container(
+                  color: Colors.black,
+                  child: VideoPlayer(controller),
+                ),
+              ),
+
+              if (value.isBuffering)
+                const Center(
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                  ),
+                ),
+
+              if (!value.isPlaying && !value.isBuffering)
+                Center(
+                  child: IconButton(
+                    onPressed: togglePlay,
+                    icon: const Icon(
+                      Icons.play_circle_fill,
+                      color: Colors.white,
+                      size: 64,
+                    ),
+                  ),
+                ),
+
+              // Separate controls: seek bar and buttons.
+              if (controlsVisible)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        Colors.black87,
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+
+                      Row(
+                        children: [
+                          IconButton(
+                            onPressed: togglePlay,
+                            icon: Icon(
+                              value.isPlaying
+                                  ? Icons.pause
+                                  : Icons.play_arrow,
+                              color: Colors.white,
+                            ),
+                          ),
+                          Expanded(
+                            child: VideoProgressIndicator(
+                              controller,
+                              allowScrubbing: true,
+                              colors: const VideoProgressColors(
+                                playedColor: Colors.blue,
+                                bufferedColor: Colors.white54,
+                                backgroundColor: Colors.white24,
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                            ),
+                          ),
+                          Text(
+                            '${formatDuration(value.position)} / '
+                            '${formatDuration(value.duration)}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                            ),
+                          ),
+
+                          IconButton(
+                            onPressed: openFullscreen,
+                            icon: const Icon(
+                              Icons.fullscreen,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
     super.dispose();
   }
 
-  Future<void> saveSkills() async {
-    if (widget.userId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('User ID missing. Please login again.')),
-      );
-      return;
+  @override
+  Widget build(BuildContext context) {
+    if (widget.fullscreen) {
+      return Center(child: buildVideo());
     }
 
-    if (teachController.text.trim().isEmpty ||
-        learnController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter both skills.')),
-      );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: buildVideo(),
+      ),
+    );
+  }
+}
+
+class FullscreenPostVideo extends StatefulWidget {
+  final String url;
+
+  const FullscreenPostVideo({
+    super.key,
+    required this.url,
+  });
+
+  @override
+  State<FullscreenPostVideo> createState() =>
+      _FullscreenPostVideoState();
+}
+
+class _FullscreenPostVideoState extends State<FullscreenPostVideo> {
+  late final VideoPlayerController controller;
+  String? errorMessage;
+  bool controlsVisible = true;
+
+  void toggleControls() {
+    setState(() {
+      controlsVisible = !controlsVisible;
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    controller = VideoPlayerController.networkUrl(
+      Uri.parse(widget.url),
+    );
+
+    controller.initialize().then((_) {
+      if (!mounted) return;
+      controller.play();
+      setState(() {});
+    }).catchError((error) {
+      if (!mounted) return;
+      setState(() {
+        errorMessage = 'Video could not be loaded';
+      });
+    });
+  }
+
+  String formatDuration(Duration duration) {
+    final minutes = duration.inMinutes;
+    final seconds = duration.inSeconds % 60;
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  void togglePlay() async {
+    debugPrint('FULLSCREEN PLAY BUTTON PRESSED');
+
+    if (!controller.value.isInitialized) {
+      debugPrint('VIDEO NOT INITIALIZED');
       return;
     }
-
-    setState(() => isSaving = true);
 
     try {
-      await ApiService.updateSkills(
-        userId: widget.userId,
-        teachSkill: teachController.text.trim(),
-        learnSkill: learnController.text.trim(),
-      );
-
-            if (!mounted) return;
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Skills saved successfully!')),
-            );
-
-            Navigator.pop(context, {
-              'teachSkill': teachController.text.trim(),
-              'learnSkill': learnController.text.trim(),
-            });
+      if (controller.value.isPlaying) {
+        await controller.pause();
+        debugPrint('VIDEO PAUSED');
+      } else {
+        await controller.play();
+        debugPrint('VIDEO PLAYING');
+      }
     } catch (e) {
-      if (!mounted) return;
+      debugPrint('VIDEO PLAY ERROR: $e');
+    }
+  }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Save failed: $e')),
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: const Text('Video'),
+      ),
+      body: Center(
+        child: AnimatedBuilder(
+          animation: controller,
+          builder: (context, child) {
+            final value = controller.value;
+
+            if (errorMessage != null || value.hasError) {
+              return const Text(
+                'Unable to play this video',
+                style: TextStyle(color: Colors.white),
+              );
+            }
+
+            if (!value.isInitialized) {
+              return const CircularProgressIndicator(
+                color: Colors.white,
+              );
+            }
+
+            return AspectRatio(
+              aspectRatio: value.aspectRatio > 0
+                  ? value.aspectRatio
+                  : 16 / 9,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  GestureDetector(
+                    onTap: toggleControls,
+                    child: VideoPlayer(controller),
+                  ),
+                  if (value.isBuffering)
+                    const Center(
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                      ),
+                    ),
+                  if (!value.isPlaying && !value.isBuffering)
+                    Center(
+                      child: IconButton(
+                        onPressed: () {
+                          debugPrint('PLAY ICON TAPPED');
+                          togglePlay();
+                        },
+                        icon: const Icon(
+                          Icons.play_circle_fill,
+                          color: Colors.white,
+                          size: 64,
+                        ),
+                      ),
+                    ),
+                  if (controlsVisible)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      color: Colors.black54,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          VideoProgressIndicator(
+                            controller,
+                            allowScrubbing: true,
+                            colors: const VideoProgressColors(
+                              playedColor: Colors.blue,
+                              bufferedColor: Colors.white54,
+                              backgroundColor: Colors.white24,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 8,
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              IconButton(
+                                onPressed: togglePlay,
+                                icon: Icon(
+                                  value.isPlaying
+                                      ? Icons.pause
+                                      : Icons.play_arrow,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              Text(
+                                '${formatDuration(value.position)} / '
+                                '${formatDuration(value.duration)}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const Spacer(),
+                              IconButton(
+                                onPressed: () {
+                                  Navigator.of(context).pop();
+                                },
+                                icon: const Icon(
+                                  Icons.fullscreen_exit,
+                                  color: Colors.white,
+                                  size: 28,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class CommentsSheet extends StatefulWidget {
+  final Map<String, dynamic> post, user;
+
+  const CommentsSheet({
+    super.key,
+    required this.post,
+    required this.user,
+  });
+
+  @override
+  State<CommentsSheet> createState() => _CommentsSheetState();
+}
+
+class _CommentsSheetState extends State<CommentsSheet> {
+  final input = TextEditingController();
+
+    List<dynamic> comments = [];
+    bool loading = true;
+    bool sending = false;
+
+    dynamic _postSocket;
+    dynamic _postSocketSubscription;
+
+  String? replyToId;
+  String? replyToName;
+
+  String get uid => '${widget.user['userId'] ?? ''}';
+
+    @override
+    void initState() {
+      super.initState();
+      load();
+      _connectPostSocket();
+    }
+  Future<void> _connectPostSocket() async {
+    try {
+      final channel = await ApiService.connectPostSocket(
+        '${widget.post['post_id']}',
       );
+
+      if (!mounted) {
+        await channel.sink.close();
+        return;
+      }
+
+      _postSocket = channel;
+
+      _postSocketSubscription = channel.stream.listen(
+        (event) {
+          if (!mounted) return;
+
+          try {
+            final data = jsonDecode(event.toString());
+
+            if (data is Map &&
+                (data['type'] == 'new_comment' ||
+                 data['type'] == 'comment_reaction')) {
+              load();
+            }
+          } catch (_) {}
+        },
+        onError: (_) {},
+        onDone: () {},
+      );
+    } catch (_) {}
+  }
+    @override
+    void dispose() {
+      _postSocketSubscription?.cancel();
+      _postSocket?.sink.close();
+      input.dispose();
+      super.dispose();
+    }
+
+  Future<void> load() async {
+    try {
+      final d = await ApiService.getComments(
+        '${widget.post['post_id']}',
+        currentUserId: uid,
+      );
+
+      if (mounted) {
+        setState(() {
+          comments = (d['comments'] as List?) ?? [];
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e')),
+        );
+      }
     } finally {
-      if (mounted) setState(() => isSaving = false);
+      if (mounted) {
+        setState(() => loading = false);
+      }
+    }
+  }
+
+  Future<void> send() async {
+    if (input.text.trim().isEmpty || sending) return;
+
+    setState(() => sending = true);
+
+    try {
+      await ApiService.addComment(
+        '${widget.post['post_id']}',
+        uid,
+        input.text.trim(),
+        parentCommentId: replyToId,
+      );
+
+      input.clear();
+
+      setState(() {
+        replyToId = null;
+        replyToName = null;
+      });
+
+      await load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => sending = false);
+      }
+    }
+  }
+
+  Future<void> reactComment(
+    Map<String, dynamic> comment,
+    String reaction,
+  ) async {
+    try {
+      await ApiService.reactToComment(
+        '${comment['comment_id']}',
+        uid,
+        reaction,
+      );
+
+      await load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e')),
+        );
+      }
+    }
+  }
+
+  Future<void> deleteComment(Map<String, dynamic> comment) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete comment?'),
+        content: const Text(
+          'Are you sure you want to delete this comment?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await ApiService.deleteComment(
+        '${comment['comment_id']}',
+        uid,
+      );
+
+      if (replyToId == comment['comment_id']) {
+        setState(() {
+          replyToId = null;
+          replyToName = null;
+        });
+      }
+
+      await load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e')),
+        );
+      }
+    }
+  }
+
+  List<Map<String, dynamic>> childrenOf(String commentId) {
+    return comments
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .where(
+          (item) => '${item['parent_comment_id'] ?? ''}' == commentId,
+        )
+        .toList();
+  }
+
+  Widget buildComment(
+    Map<String, dynamic> comment, {
+    int depth = 0,
+  }) {
+    final commentId = '${comment['comment_id'] ?? ''}';
+    final authorId = '${comment['user_id'] ?? ''}';
+    final name =
+        '${comment['full_name'] ?? comment['unique_username'] ?? 'Learner'}';
+    final myReaction = '${comment['my_reaction'] ?? ''}';
+
+
+    return Padding(
+      key: ValueKey(commentId),
+      padding: EdgeInsets.only(
+        left: depth > 0 ? 22 : 0,
+        top: 5,
+        bottom: 5,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 17,
+                backgroundImage:
+                    '${comment['profile_picture_url'] ?? ''}'.isNotEmpty
+                        ? NetworkImage(
+                            ApiService.imageUrl(
+                              '${comment['profile_picture_url']}',
+                            ),
+                          )
+                        : null,
+                child:
+                    '${comment['profile_picture_url'] ?? ''}'.isEmpty
+                        ? const Icon(Icons.person, size: 18)
+                        : null,
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(11),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .surfaceContainerHighest
+                        .withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text('${comment['content'] ?? ''}'),
+                    ],
+                  ),
+                ),
+              ),
+              if (authorId == uid)
+                PopupMenuButton<String>(
+                  tooltip: 'Comment options',
+                  onSelected: (value) {
+                    if (value == 'delete') {
+                      deleteComment(comment);
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text('Delete comment'),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 45, top: 2),
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              children: [
+                                TextButton.icon(
+                                  onPressed: () => reactComment(comment, 'like'),
+                                  icon: Icon(
+                                    Icons.thumb_up,
+                                    size: 16,
+                                    color: myReaction == 'like' ? Colors.blue : null,
+                                  ),
+                                  label: Text(
+                                    '${comment['like_count'] ?? 0}',
+                                    style: TextStyle(
+                                      color: myReaction == 'like' ? Colors.blue : null,
+                                    ),
+                                  ),
+                                ),
+                                TextButton.icon(
+                                  onPressed: () => reactComment(comment, 'dislike'),
+                                  icon: Icon(
+                                    Icons.thumb_down,
+                                    size: 16,
+                                    color: myReaction == 'dislike' ? Colors.red : null,
+                                  ),
+                                  label: Text(
+                                    '${comment['dislike_count'] ?? 0}',
+                                    style: TextStyle(
+                                      color: myReaction == 'dislike' ? Colors.red : null,
+                                    ),
+                                  ),
+                                ),
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      replyToId = commentId;
+                      replyToName = name;
+                    });
+                  },
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 28),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text('Reply'),
+                ),
+              ],
+            ),
+          ),
+          ...childrenOf(commentId).map(
+            (child) => buildComment(
+              child,
+              depth: depth + 1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final roots = comments
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .where(
+          (item) =>
+              item['parent_comment_id'] == null ||
+              '${item['parent_comment_id']}'.isEmpty,
+        )
+        .toList();
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 18,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        ),
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height * 0.7,
+          child: Column(
+            children: [
+              const Text(
+                'Comments',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: loading
+                    ? const Center(
+                        child: CircularProgressIndicator(),
+                      )
+                    : roots.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'No comments yet. Start the conversation.',
+                            ),
+                          )
+                        : ListView(
+                            children: roots
+                                .map((comment) => buildComment(comment))
+                                .toList(),
+                          ),
+              ),
+              if (replyToId != null)
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('Replying to $replyToName'),
+                    ),
+                    IconButton(
+                      tooltip: 'Cancel reply',
+                      onPressed: () {
+                        setState(() {
+                          replyToId = null;
+                          replyToName = null;
+                        });
+                      },
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: input,
+                      minLines: 1,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        hintText: 'Write a comment...',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filled(
+                    onPressed: sending ? null : send,
+                    icon: const Icon(Icons.send),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+class PeopleScreen extends StatefulWidget {final Map<String,dynamic> user;const PeopleScreen({super.key,required this.user});@override State<PeopleScreen> createState()=>_PeopleScreenState();}
+class _PeopleScreenState extends State<PeopleScreen>{final search=TextEditingController();List<dynamic> people=[];bool loading=true;String get uid=>'${widget.user['userId']}';@override void initState(){super.initState();load();}@override void dispose(){search.dispose();super.dispose();}Future<void> load()async{setState(()=>loading=true);try{final d=await ApiService.getPeople(uid,search:search.text.trim());if(mounted)setState(()=>people=(d['people'] as List?)??[]);}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$e')));}finally{if(mounted)setState(()=>loading=false);}}Future<void> follow(String id)async{try{final d=await ApiService.follow(uid,id);if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('${d['message']??'Done'}')));await load();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$e')));}}@override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Discover people')),body:Column(children:[Padding(padding:const EdgeInsets.all(14),child:TextField(controller:search,onSubmitted:(_)=>load(),decoration:InputDecoration(hintText:'Search name or username',prefixIcon:const Icon(Icons.search),suffixIcon:IconButton(onPressed:load,icon:const Icon(Icons.arrow_forward)),border:OutlineInputBorder(borderRadius:BorderRadius.circular(14))))),Expanded(child:loading?const Center(child:CircularProgressIndicator()):people.isEmpty?const Center(child:Text('No people found.')):ListView.builder(itemCount:people.length,itemBuilder:(context,i){final p=Map<String,dynamic>.from(people[i] as Map);final id='${p['user_id']}';final followed=(p['is_following'] as num? ?? 0)>0;final status=p['request_status'];final pic=ApiService.imageUrl(p['profile_picture_url']?.toString());return Card(margin:const EdgeInsets.symmetric(horizontal:14,vertical:5),child:ListTile(onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>PublicProfileScreen(targetId:id,user:widget.user))),leading:CircleAvatar(backgroundImage:pic.isNotEmpty?NetworkImage(pic):null,child:pic.isEmpty?const Icon(Icons.person):null),title:Text('${p['full_name']??p['unique_username']}',style:const TextStyle(fontWeight:FontWeight.bold)),subtitle:Text('@${p['unique_username']??''}'),trailing:Wrap(spacing:4,children:[IconButton(tooltip:'Message',onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>ChatScreen(user:widget.user,otherId:id,otherName:'${p['full_name']??p['unique_username']}'))),icon:const Icon(Icons.chat_bubble_outline)),if(followed)const Chip(label:Text('Following'))else if(status=='pending')const Chip(label:Text('Requested'))else IconButton(tooltip:'Follow',onPressed:()=>follow(id),icon:const Icon(Icons.person_add_alt_1,color:brand))])));} ))]));}
+
+class RequestsScreen extends StatefulWidget {final Map<String,dynamic> user;const RequestsScreen({super.key,required this.user});@override State<RequestsScreen> createState()=>_RequestsScreenState();}
+class _RequestsScreenState extends State<RequestsScreen>{List<dynamic> requests=[];bool loading=true;String get uid=>'${widget.user['userId']}';@override void initState(){super.initState();load();}Future<void> load()async{setState(()=>loading=true);try{final d=await ApiService.getFollowRequests(uid);if(mounted)setState(()=>requests=(d['requests'] as List?)??[]);}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$e')));}finally{if(mounted)setState(()=>loading=false);}}Future<void> respond(Map<String,dynamic> r,bool accept)async{try{await ApiService.respondFollowRequest('${r['request_id']}',uid,accept);await load();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$e')));}}@override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Follow requests')),body:loading?const Center(child:CircularProgressIndicator()):requests.isEmpty?const Center(child:Column(mainAxisSize:MainAxisSize.min,children:[Icon(Icons.person_add_disabled,size:46,color:brand),SizedBox(height:10),Text('No pending follow requests')])):ListView.builder(itemCount:requests.length,itemBuilder:(context,i){final r=Map<String,dynamic>.from(requests[i] as Map);return Card(
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   child: ListTile(
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     onTap: () {
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       Navigator.push(
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         context,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         MaterialPageRoute(
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           builder: (_) => PublicProfileScreen(
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             targetId: '${r['sender_id']}',
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             user: widget.user,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           ),
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         ),
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       );
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     },
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     leading: const CircleAvatar(
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       child: Icon(Icons.person),
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     ),
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     title: Text(
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       '${r['full_name'] ?? r['unique_username']}',
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     ),
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     subtitle: Text(
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       '@${r['unique_username'] ?? ''} wants to follow you',
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     ),trailing:Wrap(children:[IconButton(onPressed:()=>respond(r,false),icon:const Icon(Icons.close,color:Colors.red)),IconButton(onPressed:()=>respond(r,true),icon:const Icon(Icons.check_circle,color:brand))])));}));}
+
+class MessagesScreen extends StatefulWidget {final Map<String,dynamic> user;const MessagesScreen({super.key,required this.user});@override State<MessagesScreen> createState()=>_MessagesScreenState();}
+class _MessagesScreenState extends State<MessagesScreen> {
+  List<dynamic> conversations = [];
+  bool loading = true;
+  String get uid => '${widget.user['userId']}';
+
+  @override
+  void initState() { super.initState(); load(); }
+
+  Future<void> load() async {
+    try {
+      final d = await ApiService.getConversations(uid);
+      if (mounted) setState(() => conversations = (d['conversations'] as List?) ?? []);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => loading = false);
     }
   }
 
@@ -1172,923 +2039,566 @@ class _MySkillsScreenState extends State<MySkillsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Skills'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
+        title: const Text('Messages'),
+        actions: [IconButton(
+          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PeopleScreen(user: widget.user))),
+          icon: const Icon(Icons.add_comment_outlined),
+        )],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          const Text(
-            'Your Skill Journey',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: teachController,
-            decoration: const InputDecoration(
-              labelText: 'Skills I Can Teach',
-              prefixIcon: Icon(Icons.school),
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: learnController,
-            decoration: const InputDecoration(
-              labelText: 'Skills I Want to Learn',
-              prefixIcon: Icon(Icons.menu_book),
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: isSaving ? null : saveSkills,
-            icon: const Icon(Icons.save),
-            label: Text(isSaving ? 'Saving...' : 'Save Skills'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-
-
- // ==================== PROFILE SCREEN ====================
-
- class ProfileScreen extends StatefulWidget {
-   final String userId;
-   final String name;
-   final String email;
-   final String teachSkill;
-   final String learnSkill;
-
-   const ProfileScreen({
-     super.key,
-     required this.userId,
-     required this.name,
-     required this.email,
-     required this.teachSkill,
-     required this.learnSkill,
-   });
-
-   @override
-   State<ProfileScreen> createState() => _ProfileScreenState();
- }
-
- class _ProfileScreenState extends State<ProfileScreen> {
-   late String currentName;
-   late String currentBio;
-   late String currentTeachSkill;
-   late String currentLearnSkill;
-   Map<String, dynamic>? ratingsData;
-   bool isLoadingRatings = true;
-   String? ratingsError;
-
-   late final TextEditingController nameController;
-   late final TextEditingController bioController;
-   late final TextEditingController teachController;
-   late final TextEditingController learnController;
-
-   @override
-   void initState() {
-     super.initState();
-
-     currentName = widget.name;
-     currentBio =
-         'I am part of the SkillSwap community, where I share what I know and learn something new from others.';
-     currentTeachSkill = widget.teachSkill;
-     currentLearnSkill = widget.learnSkill;
-
-     nameController = TextEditingController(text: currentName);
-     bioController = TextEditingController(text: currentBio);
-     teachController = TextEditingController(text: currentTeachSkill);
-     learnController = TextEditingController(text: currentLearnSkill);
-
-     _loadProfile();
-     _loadRatings();
-   }
-
-Future<void> _loadProfile() async {
-  try {
-    final data = await ApiService.getProfile(widget.userId);
-
-    if (!mounted) return;
-
-    final profile = data['profile'] is Map
-        ? Map<String, dynamic>.from(data['profile'])
-        : data['user'] is Map
-            ? Map<String, dynamic>.from(data['user'])
-            : data;
-
-    setState(() {
-      currentName = profile['full_name'] ?? widget.name;
-      currentBio = profile['bio'] ??
-          'I am part of the SkillSwap community, where I share what I know and learn something new from others.';
-      currentTeachSkill =
-          profile['teach_skill'] ?? widget.teachSkill;
-      currentLearnSkill =
-          profile['learn_skill'] ?? widget.learnSkill;
-
-      nameController.text = currentName;
-      bioController.text = currentBio;
-      teachController.text = currentTeachSkill;
-      learnController.text = currentLearnSkill;
-    });
-  } catch (e) {
-    debugPrint('Profile loading failed: $e');
-  }
-}
-Future<void> _loadRatings() async {
-  try {
-    final data = await ApiService.getRatings(widget.userId);
-
-    if (!mounted) return;
-
-    setState(() {
-      ratingsData = data;
-      ratingsError = null;
-      isLoadingRatings = false;
-    });
-  } catch (e) {
-    if (!mounted) return;
-
-    setState(() {
-      ratingsError = e.toString();
-      isLoadingRatings = false;
-    });
-  }
-}
-
-   @override
-   void dispose() {
-     nameController.dispose();
-     bioController.dispose();
-     teachController.dispose();
-     learnController.dispose();
-     super.dispose();
-   }
-
-   @override
-   Widget build(BuildContext context) {
-     const navy = Color(0xFF172554);
-     const teal = Color(0xFF0F766E);
-     const pageColor = Color(0xFFF4F7FB);
-
-     return Scaffold(
-       backgroundColor: pageColor,
-       appBar: AppBar(
-         backgroundColor: pageColor,
-         foregroundColor: navy,
-         elevation: 0,
-         centerTitle: true,
-         title: const Text(
-           'My Profile',
-           style: TextStyle(
-             fontWeight: FontWeight.bold,
-             fontSize: 21,
-           ),
-         ),
-         actions: [
-           IconButton(
-             tooltip: 'Settings',
-             icon: const Icon(Icons.settings_outlined),
-             onPressed: () {
-               showDialog<void>(
-                 context: context,
-                 builder: (dialogContext) => AlertDialog(
-                   title: const Text('Settings'),
-                   content: const Text(
-                     'Log out of your SkillSwap account?',
-                   ),
-                   actions: [
-                     TextButton(
-                       onPressed: () => Navigator.pop(dialogContext),
-                       child: const Text('Cancel'),
-                     ),
-                     FilledButton.icon(
-                       icon: const Icon(Icons.logout),
-                       label: const Text('Logout'),
-                       onPressed: () async {
-                         Navigator.pop(dialogContext);
-
-                         final prefs = await SharedPreferences.getInstance();
-                         await prefs.remove('skillswap_session');
-
-                         if (!context.mounted) return;
-
-                         Navigator.of(context).pushAndRemoveUntil(
-                           MaterialPageRoute(
-                             builder: (_) => const WelcomeScreen(),
-                           ),
-                           (route) => false,
-                         );
-                       },
-                     ),
-                   ],
-                 ),
-               );
-             },
-           ),
-         ],
-       ),
-       body: SingleChildScrollView(
-         child: Column(
-           crossAxisAlignment: CrossAxisAlignment.start,
-           children: [
-             // Cover banner
-             Container(
-               height: 155,
-               width: double.infinity,
-               decoration: const BoxDecoration(
-                 gradient: LinearGradient(
-                   colors: [
-                     Color(0xFF172554),
-                     Color(0xFF0F766E),
-                     Color(0xFF2DD4BF),
-                   ],
-                   begin: Alignment.topLeft,
-                   end: Alignment.bottomRight,
-                 ),
-                 borderRadius: BorderRadius.only(
-                   bottomLeft: Radius.circular(30),
-                   bottomRight: Radius.circular(30),
-                 ),
-               ),
-               child: Stack(
-                 children: [
-                   Positioned(
-                     right: 18,
-                     top: 18,
-                     child: Icon(
-                       Icons.auto_awesome,
-                       size: 45,
-                       color: Colors.white.withValues(alpha: 0.35),
-                     ),
-                   ),
-                   Positioned(
-                     right: 75,
-                     bottom: 18,
-                     child: Icon(
-                       Icons.menu_book_rounded,
-                       size: 65,
-                       color: Colors.white.withValues(alpha: 0.18),
-                     ),
-                   ),
-                   const Positioned(
-                     left: 22,
-                     top: 22,
-                     child: Text(
-                       'YOUR SKILLS. YOUR FUTURE.',
-                       style: TextStyle(
-                         color: Colors.white,
-                         fontSize: 12,
-                         fontWeight: FontWeight.w600,
-                         letterSpacing: 1.3,
-                       ),
-                     ),
-                   ),
-                 ],
-               ),
-             ),
-
-             // Profile information
-             Transform.translate(
-               offset: const Offset(0, -45),
-               child: Padding(
-                 padding: const EdgeInsets.symmetric(horizontal: 22),
-                 child: Column(
-                   crossAxisAlignment: CrossAxisAlignment.start,
-                   children: [
-                     Row(
-                       crossAxisAlignment: CrossAxisAlignment.end,
-                       children: [
-                         Container(
-                           padding: const EdgeInsets.all(4),
-                           decoration: const BoxDecoration(
-                             color: Colors.white,
-                             shape: BoxShape.circle,
-                           ),
-                           child: CircleAvatar(
-                             radius: 48,
-                             backgroundColor: const Color(0xFFD1FAE5),
-                             child: Text(
-                               currentName.trim().isNotEmpty
-                                   ? currentName.trim()[0].toUpperCase()
-                                   : 'S',
-                               style: const TextStyle(
-                                 fontSize: 36,
-                                 fontWeight: FontWeight.bold,
-                                 color: teal,
-                               ),
-                             ),
-                           ),
-                         ),
-                         const Spacer(),
-                         Padding(
-                           padding: const EdgeInsets.only(bottom: 5),
-                           child: OutlinedButton.icon(
-                             onPressed: () => _showEditProfileDialog(context),
-                             icon: const Icon(
-                               Icons.edit_outlined,
-                               size: 17,
-                             ),
-                             label: const Text('Edit Profile'),
-                             style: OutlinedButton.styleFrom(
-                               foregroundColor: teal,
-                               side: const BorderSide(color: teal),
-                               backgroundColor: Colors.white,
-                               shape: RoundedRectangleBorder(
-                                 borderRadius: BorderRadius.circular(12),
-                               ),
-                               padding: const EdgeInsets.symmetric(
-                                 horizontal: 12,
-                                 vertical: 10,
-                               ),
-                             ),
-                           ),
-                         ),
-                       ],
-                     ),
-
-                     const SizedBox(height: 10),
-
-                     Text(
-                       currentName,
-                       style: const TextStyle(
-                         fontSize: 26,
-                         fontWeight: FontWeight.bold,
-                         color: navy,
-                       ),
-                     ),
-
-                     const SizedBox(height: 7),
-
-                     Row(
-                       children: [
-                         const Icon(
-                           Icons.email_outlined,
-                           color: teal,
-                           size: 18,
-                         ),
-                         const SizedBox(width: 7),
-                         Expanded(
-                           child: Text(
-                             widget.email,
-                             style: const TextStyle(
-                               color: Color(0xFF64748B),
-                               fontSize: 14,
-                             ),
-                           ),
-                         ),
-                       ],
-                     ),
-
-                     const SizedBox(height: 20),
-
-                     _profileSectionTitle(
-                       'About Me',
-                       Icons.person_outline_rounded,
-                     ),
-                     const SizedBox(height: 11),
-                     _profileCard(
-                       child: Text(
-                         currentBio.isEmpty
-                             ? 'No bio added yet.'
-                             : currentBio,
-                         style: const TextStyle(
-                           color: Color(0xFF475569),
-                           fontSize: 14,
-                           height: 1.7,
-                         ),
-                       ),
-                     ),
-
-                     const SizedBox(height: 24),
-
-                     _profileSectionTitle(
-                       'Skills I Can Teach',
-                       Icons.school_rounded,
-                     ),
-                     const SizedBox(height: 11),
-                     _profileCard(
-                       child: _buildSkillChips(
-                         currentTeachSkill,
-                         const Color(0xFFD1FAE5),
-                         const Color(0xFF065F46),
-                         Icons.lightbulb_outline_rounded,
-                       ),
-                     ),
-
-                     const SizedBox(height: 24),
-
-                     _profileSectionTitle(
-                       'Skills I Want to Learn',
-                       Icons.auto_stories_rounded,
-                     ),
-                     const SizedBox(height: 11),
-                     _profileCard(
-                       child: _buildSkillChips(
-                         currentLearnSkill,
-                         const Color(0xFFDBEAFE),
-                         const Color(0xFF1D4ED8),
-                         Icons.menu_book_rounded,
-                       ),
-                     ),
-
-                     const SizedBox(height: 24),
-
-                     _profileSectionTitle(
-                       'Learning Activity',
-                       Icons.insights_rounded,
-                     ),
-                     const SizedBox(height: 11),
-                     _profileCard(
-                       child: const Row(
-                         children: [
-                           Expanded(
-                             child: _ProfileStat(
-                               icon: Icons.event_available_rounded,
-                               value: '—',
-                               label: 'Sessions',
-                               color: Color(0xFF0F766E),
-                             ),
-                           ),
-                           Expanded(
-                             child: _ProfileStat(
-                               icon: Icons.workspace_premium_rounded,
-                               value: '—',
-                               label: 'Skills Shared',
-                               color: Color(0xFF7C3AED),
-                             ),
-                           ),
-                           Expanded(
-                             child: _ProfileStat(
-                               icon: Icons.trending_up_rounded,
-                               value: '—',
-                               label: 'Skills Learned',
-                               color: Color(0xFF2563EB),
-                             ),
-                           ),
-                         ],
-                       ),
-                     ),
-
-                     const SizedBox(height: 24),
-
-                     _profileSectionTitle(
-                       'Ratings & Reviews',
-                       Icons.star_rounded,
-                     ),
-                     const SizedBox(height: 11),
-                     _profileCard(
-                       child: Builder(
-                         builder: (context) {
-                           if (isLoadingRatings) {
-                             return const Center(
-                               child: Padding(
-                                 padding: EdgeInsets.all(20),
-                                 child: CircularProgressIndicator(),
-                               ),
-                             );
-                           }
-
-                           if (ratingsError != null) {
-                             return Column(
-                               crossAxisAlignment: CrossAxisAlignment.start,
-                               children: [
-                                 const Text('Could not load ratings.'),
-                                 const SizedBox(height: 8),
-                                 Text(
-                                   ratingsError!,
-                                   style: const TextStyle(color: Colors.red),
-                                 ),
-                                 TextButton(
-                                   onPressed: _loadRatings,
-                                   child: const Text('Try again'),
-                                 ),
-                               ],
-                             );
-                           }
-
-                           final data = ratingsData ?? {};
-                           final average =
-                               (data['average_rating'] as num?)?.toDouble() ?? 0.0;
-                           final reviews = data['reviews'] is List
-                               ? data['reviews'] as List
-                               : <dynamic>[];
-                           final count = (data['count'] as num?)?.toInt() ?? reviews.length;
-
-                           if (reviews.isEmpty) {
-                             return const ListTile(
-                               leading: Icon(
-                                 Icons.star_outline_rounded,
-                                 color: Color(0xFFD97706),
-                                 size: 32,
-                               ),
-                               title: Text('No reviews yet'),
-                               subtitle: Text(
-                                 'Reviews from other learners will appear here.',
-                               ),
-                             );
-                           }
-
-                           return Column(
-                             crossAxisAlignment: CrossAxisAlignment.start,
-                             children: [
-                               Row(
-                                 children: [
-                                   const Icon(
-                                     Icons.star_rounded,
-                                     color: Color(0xFFD97706),
-                                     size: 30,
-                                   ),
-                                   const SizedBox(width: 8),
-                                   Text(
-                                     average.toStringAsFixed(1),
-                                     style: const TextStyle(
-                                       fontSize: 25,
-                                       fontWeight: FontWeight.bold,
-                                       color: navy,
-                                     ),
-                                   ),
-                                   const SizedBox(width: 8),
-                                   Expanded(child: Text('$count reviews')),
-                                   IconButton(
-                                     tooltip: 'Refresh reviews',
-                                     onPressed: _loadRatings,
-                                     icon: const Icon(Icons.refresh),
-                                   ),
-                                 ],
-                               ),
-                               const Divider(),
-                               ...reviews.map((item) {
-                                 final review = Map<String, dynamic>.from(item as Map);
-                                 final reviewer =
-                                     (review['reviewer_username'] ?? 'Learner').toString();
-                                 final rating =
-                                     (review['rating'] as num?)?.toInt() ?? 0;
-                                 final comment = (review['review'] ?? '').toString();
-                                 final date = (review['created_at'] ?? '').toString();
-
-                                 return Padding(
-                                   padding: const EdgeInsets.symmetric(vertical: 10),
-                                   child: Column(
-                                     crossAxisAlignment: CrossAxisAlignment.start,
-                                     children: [
-                                       Row(
-                                         children: [
-                                           const Icon(Icons.person_outline),
-                                           const SizedBox(width: 8),
-                                           Expanded(
-                                             child: Text(
-                                               reviewer,
-                                               style: const TextStyle(
-                                                 fontWeight: FontWeight.bold,
-                                               ),
-                                             ),
-                                           ),
-                                           Text('$rating/5'),
-                                         ],
-                                       ),
-                                       Row(
-                                         children: List.generate(
-                                           5,
-                                           (index) => Icon(
-                                             index < rating
-                                                 ? Icons.star_rounded
-                                                 : Icons.star_outline_rounded,
-                                             color: const Color(0xFFD97706),
-                                             size: 18,
-                                           ),
-                                         ),
-                                       ),
-                                       if (comment.isNotEmpty) ...[
-                                         const SizedBox(height: 6),
-                                         Text(comment),
-                                       ],
-                                       if (date.isNotEmpty) ...[
-                                         const SizedBox(height: 5),
-                                         Text(
-                                           date,
-                                           style: const TextStyle(
-                                             fontSize: 11,
-                                             color: Color(0xFF64748B),
-                                           ),
-                                         ),
-                                       ],
-                                     ],
-                                   ),
-                                 );
-                               }),
-                             ],
-                           );
-                         },
-                       ),
-                     ),
-
-                     const SizedBox(height: 20),
-
-                     Center(
-                       child: Text(
-                         'Learn • Share • Grow with SkillSwap',
-                         textAlign: TextAlign.center,
-                         style: TextStyle(
-                           fontSize: 12,
-                           color: Colors.blueGrey.shade400,
-                           fontWeight: FontWeight.w500,
-                         ),
-                       ),
-                     ),
-
-                     const SizedBox(height: 20),
-                   ],
-                 ),
-               ),
-             ),
-           ],
-         ),
-       ),
-     );
-   }
-
-
-  // Edit Profile dialog
-  void _showEditProfileDialog(BuildContext context) {
-    nameController.text = currentName;
-    bioController.text = currentBio;
-    teachController.text = currentTeachSkill;
-    learnController.text = currentLearnSkill;
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Edit Profile'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Full Name',
-                  prefixIcon: Icon(Icons.person_outline),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: bioController,
-                decoration: const InputDecoration(
-                  labelText: 'Bio',
-                  prefixIcon: Icon(Icons.info_outline),
-                ),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: teachController,
-                decoration: const InputDecoration(
-                  labelText: 'Skills I Can Teach',
-                  prefixIcon: Icon(Icons.school_outlined),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: learnController,
-                decoration: const InputDecoration(
-                  labelText: 'Skills I Want to Learn',
-                  prefixIcon: Icon(Icons.menu_book_outlined),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (nameController.text.trim().isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Name cannot be empty'),
-                  ),
-                );
-                return;
-              }
-
-              try {
-                final result = await ApiService.updateProfile(
-                  userId: widget.userId,
-                  fullName: nameController.text.trim(),
-                  bio: bioController.text.trim(),
-                  teachSkill: teachController.text.trim(),
-                  learnSkill: learnController.text.trim(),
-                );
-
-                if (!mounted || !dialogContext.mounted) return;
-
-                setState(() {
-                  currentName = nameController.text.trim();
-                  currentBio = bioController.text.trim();
-                  currentTeachSkill = teachController.text.trim();
-                  currentLearnSkill = learnController.text.trim();
-                });
-
-                Navigator.pop(dialogContext);
-
-                if (!context.mounted) return;
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      result['message'] ?? 'Profile saved successfully!',
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : conversations.isEmpty
+              ? Center(child: Padding(
+                  padding: const EdgeInsets.all(28),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.chat_bubble_outline, size: 48, color: brand),
+                    const SizedBox(height: 10),
+                    const Text('No conversations yet', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 6),
+                    const Text('Discover people and tap the message icon to start a conversation.', textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PeopleScreen(user: widget.user))),
+                      child: const Text('Find people'),
                     ),
-                  ),
-                );
-              } catch (e) {
-                if (!context.mounted) return;
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Could not save profile: $e'),
-                  ),
-                );
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _profileSectionTitle(String title, IconData icon) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          color: const Color(0xFF0F766E),
-          size: 23,
-        ),
-        const SizedBox(width: 9),
-        Expanded(
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF172554),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _profileCard({required Widget child}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(
-          color: const Color(0xFFE2E8F0),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF172554).withValues(alpha: 0.035),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: child,
-    );
-  }
-
-  Widget _buildSkillChips(
-    String skillText,
-    Color backgroundColor,
-    Color textColor,
-    IconData icon,
-  ) {
-    final skillList = skillText
-        .split(',')
-        .map((skill) => skill.trim())
-        .where((skill) => skill.isNotEmpty)
-        .toList();
-
-    if (skillList.isEmpty) {
-      return const Text(
-        'No skills added yet',
-        style: TextStyle(color: Colors.grey),
-      );
-    }
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: skillList.map((skill) {
-        return Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 9,
-          ),
-          decoration: BoxDecoration(
-            color: backgroundColor,
-            borderRadius: BorderRadius.circular(30),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 15, color: textColor),
-              const SizedBox(width: 6),
-              Text(
-                skill,
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+                  ]),
+                ))
+              : ListView.builder(
+                  itemCount: conversations.length,
+                  itemBuilder: (context, i) {
+                    final c = Map<String, dynamic>.from(conversations[i] as Map);
+                    final pic = ApiService.imageUrl(c['profile_picture_url']?.toString());
+                    return ListTile(
+                      leading: CircleAvatar(backgroundImage: pic.isNotEmpty ? NetworkImage(pic) : null, child: pic.isEmpty ? const Icon(Icons.person) : null),
+                      title: Text('${c['full_name'] ?? c['unique_username']}'),
+                      subtitle: Text('${c['last_message'] ?? ''}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                      onTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(
+                          user: widget.user,
+                          otherId: '${c['user_id']}',
+                          otherName: '${c['full_name'] ?? c['unique_username']}',
+                        ))).then((_) => load());
+                      },
+                    );
+                  },
                 ),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
     );
   }
 }
 
-class _ProfileStat extends StatelessWidget {
-  final IconData icon;
-  final String value;
-  final String label;
-  final Color color;
+class ChatScreen extends StatefulWidget {final Map<String,dynamic> user;final String otherId,otherName;const ChatScreen({super.key,required this.user,required this.otherId,required this.otherName});@override State<ChatScreen> createState()=>_ChatScreenState();}
+class _ChatScreenState extends State<ChatScreen>{final input=TextEditingController();List<dynamic> messages=[];bool loading=true,sending=false;String get uid=>'${widget.user['userId']}';@override void initState(){super.initState();load();}@override void dispose(){input.dispose();super.dispose();}Future<void> load()async{try{final d=await ApiService.getMessages(uid,widget.otherId);if(mounted)setState(()=>messages=(d['messages'] as List?)??[]);}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$e')));}finally{if(mounted)setState(()=>loading=false);}}Future<void> send()async{if(input.text.trim().isEmpty)return;final text=input.text.trim();setState(()=>sending=true);try{await ApiService.sendMessage(uid,widget.otherId,text);input.clear();await load();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));}finally{if(mounted)setState(()=>sending=false);}}@override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:Text(widget.otherName)),body:Column(children:[Expanded(child:loading?const Center(child:CircularProgressIndicator()):messages.isEmpty?const Center(child:Text('Say hello to start chatting.')):ListView.builder(padding:const EdgeInsets.all(12),itemCount:messages.length,itemBuilder:(context,i){final m=Map<String,dynamic>.from(messages[i] as Map);final mine='${m['sender_id']}'==uid;return Align(alignment:mine?Alignment.centerRight:Alignment.centerLeft,child:Container(margin:const EdgeInsets.symmetric(vertical:4),padding:const EdgeInsets.symmetric(horizontal:14,vertical:10),constraints:BoxConstraints(maxWidth:MediaQuery.of(context).size.width*.75),decoration:BoxDecoration(color:mine?brand:Colors.white,borderRadius:BorderRadius.circular(16)),child:Text('${m['content']}',style:TextStyle(color:mine?Colors.white:ink))));})),SafeArea(child:Padding(padding:const EdgeInsets.all(10),child:Row(children:[Expanded(child:TextField(controller:input,minLines:1,maxLines:4,decoration:const InputDecoration(hintText:'Message...',border:OutlineInputBorder()))),const SizedBox(width:8),IconButton.filled(onPressed:sending?null:send,icon:const Icon(Icons.send))])))]));}
 
-  const _ProfileStat({
-    required this.icon,
-    required this.value,
-    required this.label,
-    required this.color,
-  });
+class MyProfileScreen extends StatefulWidget {final Map<String,dynamic> user;final Future<void> Function() onLogout;const MyProfileScreen({super.key,required this.user,required this.onLogout});@override State<MyProfileScreen> createState()=>_MyProfileScreenState();}
+class _MyProfileScreenState extends State<MyProfileScreen> {
+  Map<String, dynamic> profile = {};
+  bool loading = true, saving = false;
+  String get uid => '${widget.user['userId']}';
+
+  @override
+  void initState() { super.initState(); load(); }
+
+  Future<void> load() async {
+    try {
+      final d = await ApiService.getProfile(uid);
+      if (mounted) setState(() => profile = Map<String, dynamic>.from(d['profile'] as Map));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> pickPicture() async {
+    final x = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 82);
+    if (x == null) return;
+    setState(() => saving = true);
+    try {
+      final d = await ApiService.uploadPicture(uid, File(x.path));
+      if (mounted) {
+        setState(() => profile['profile_picture_url'] = d['url']);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile picture updated')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  Future<void> edit() async {
+    final fields = <String, TextEditingController>{
+  for (final key in [
+    'full_name',
+    'bio',
+    'hometown',
+    'present_address',
+    'school',
+    'college',
+    'date_of_birth',
+    'teach_skill',
+    'learn_skill',
+  ])
+    key: TextEditingController(
+      text: '${profile[key] ?? (key == 'teach_skill' ? widget.user['teachSkill'] : key == 'learn_skill' ? widget.user['learnSkill'] : '') ?? ''}',
+    ),
+};
+    String privacy = '${profile['privacy'] ?? 'public'}';
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialog) => AlertDialog(
+          title: const Text('Edit profile'),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                _editField(fields['full_name']!, 'Full name'),
+                _editField(fields['bio']!, 'Bio', max: 3),
+                _editField(fields['hometown']!, 'Hometown'),
+                _editField(fields['present_address']!, 'Present address'),
+                _editField(fields['school']!, 'School'),
+                _editField(fields['college']!, 'College'),
+                TextFormField(
+                  controller: fields['date_of_birth'],
+                  readOnly: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Date of birth',
+                    suffixIcon: Icon(Icons.calendar_month),
+                  ),
+                  onTap: () async {
+                    final now = DateTime.now();
+                    final current = DateTime.tryParse(
+                      fields['date_of_birth']!.text,
+                    );
+
+                    final picked = await showDatePicker(
+                      context: ctx,
+                      initialDate: current != null && !current.isAfter(now)
+                          ? current
+                          : DateTime(2000),
+                      firstDate: DateTime(1900),
+                      lastDate: now,
+                    );
+
+                    if (picked != null) {
+                      fields['date_of_birth']!.text =
+                          '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+                    }
+                  },
+                ),
+                _editField(fields['teach_skill']!, 'Skills I can teach', max: 2),
+                _editField(fields['learn_skill']!, 'Skills I want to learn', max: 2),
+                DropdownButtonFormField<String>(
+                  initialValue: privacy,
+                  decoration: const InputDecoration(labelText: 'Account privacy'),
+                  items: const [
+                    DropdownMenuItem(value: 'public', child: Text('Public')),
+                    DropdownMenuItem(value: 'private', child: Text('Private')),
+                  ],
+                  onChanged: (v) => setDialog(() => privacy = v ?? 'public'),
+                ),
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, {
+                for (final e in fields.entries) e.key: e.value.text,
+                'privacy': privacy,
+                'profile_picture_url': '${profile['profile_picture_url'] ?? ''}',
+              }),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result == null) { for (final c in fields.values) { c.dispose(); } return; }
+    setState(() => saving = true);
+    try {
+      await ApiService.updateProfile(uid, result);
+      await load();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile saved')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      for (final c in fields.values) { c.dispose(); }
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  Widget _editField(TextEditingController c, String label, {int max = 1}) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: TextField(controller: c, minLines: max, maxLines: max, decoration: InputDecoration(labelText: label, border: const OutlineInputBorder())),
+  );
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    final pic = ApiService.imageUrl(profile['profile_picture_url']?.toString());
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('My profile'),
+        actions: [
+          IconButton(onPressed: edit, icon: const Icon(Icons.edit_outlined)),
+          PopupMenuButton<String>(
+            onSelected: (v) {
+              if (v == 'settings') Navigator.of(context).push(MaterialPageRoute(builder: (_) => SettingsScreen(user: widget.user, onLogout: widget.onLogout)));
+              if (v == 'logout') widget.onLogout();
+            },
+            itemBuilder: (_) => const [PopupMenuItem(value: 'settings', child: Text('Settings')), PopupMenuItem(value: 'logout', child: Text('Log out'))],
+          ),
+        ],
+      ),
+      body: loading ? const Center(child: CircularProgressIndicator()) : RefreshIndicator(
+        onRefresh: load,
+        child: ListView(padding: const EdgeInsets.all(16), children: [
+          Card(child: Padding(padding: const EdgeInsets.all(20), child: Column(children: [
+            Stack(children: [
+              CircleAvatar(radius: 52, backgroundImage: pic.isNotEmpty ? NetworkImage(pic) : null, child: pic.isEmpty ? const Icon(Icons.person, size: 52) : null),
+              Positioned(right: 0, bottom: 0, child: CircleAvatar(backgroundColor: brand, child: IconButton(onPressed: saving ? null : pickPicture, color: Colors.white, icon: const Icon(Icons.camera_alt, size: 20)))),
+            ]),
+            const SizedBox(height: 12),
+            Text('${profile['full_name'] ?? widget.user['name']}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: ink)),
+            Text('@${profile['unique_username'] ?? widget.user['username'] ?? ''}', style: const TextStyle(color: Colors.blueGrey)),
+            if ('${profile['bio'] ?? ''}'.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text('${profile['bio']}', textAlign: TextAlign.center)),
+            const SizedBox(height: 12),
+            Wrap(alignment: WrapAlignment.center, spacing: 20, children: [_count('${profile['followers_count'] ?? 0}', 'Followers'), _count('${profile['following_count'] ?? 0}', 'Following')]),
+            const SizedBox(height: 14),
+            FilledButton.icon(onPressed: edit, icon: const Icon(Icons.edit), label: const Text('Edit profile')),
+          ]))),
+          _section('About you', Icons.info_outline, [
+            _info(Icons.location_city, 'Hometown', profile['hometown']),
+            _info(Icons.home_outlined, 'Present address', profile['present_address']),
+            _info(Icons.school_outlined, 'School', profile['school']),
+            _info(Icons.account_balance_outlined, 'College', profile['college']),
+            _info(Icons.cake_outlined, 'Date of birth', profile['date_of_birth']),
+            _info(Icons.lock_outline, 'Privacy', profile['privacy'] ?? 'public'),
+          ]),
+          _section('SkillSwap', Icons.auto_awesome, [
+  _info(
+    Icons.school,
+    'Skills I can teach',
+    profile['teach_skill'] ?? widget.user['teachSkill'],
+  ),
+  _info(
+    Icons.menu_book,
+    'Skills I want to learn',
+    profile['learn_skill'] ?? widget.user['learnSkill'],
+  ),
+]),
+
+          const SizedBox(height: 8),
+          OutlinedButton.icon(onPressed: widget.onLogout, icon: const Icon(Icons.logout), label: const Text('Log out')),
+        ]),
+      ),
+    );
+  }
+
+  Widget _count(String n, String label) => Column(children: [Text(n, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)), Text(label, style: const TextStyle(color: Colors.blueGrey))]);
+  Widget _info(IconData icon, String label, dynamic value) => ListTile(dense: true, leading: Icon(icon, color: brand), title: Text(label), subtitle: Text(value == null || '$value'.isEmpty ? 'Not added' : '$value'));
+  Widget _section(String title, IconData icon, List<Widget> children) => Card(child: Padding(padding: const EdgeInsets.all(8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [ListTile(leading: Icon(icon, color: brand), title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)), dense: true), ...children])));
+}
+
+class PublicProfileScreen extends StatefulWidget {final String targetId;final Map<String,dynamic> user;const PublicProfileScreen({super.key,required this.targetId,required this.user});@override State<PublicProfileScreen> createState()=>_PublicProfileScreenState();}
+class _PublicProfileScreenState extends State<PublicProfileScreen>{Map<String,dynamic>? p;bool loading=true;String get uid=>'${widget.user['userId']}';@override void initState(){super.initState();load();}Future<void> load()async{try{final d=await ApiService.getPublicProfile(widget.targetId,uid);if(mounted)setState(()=>p=Map<String,dynamic>.from(d['profile'] as Map));}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$e')));}finally{if(mounted)setState(()=>loading=false);}}Future<void> follow()async{try{final d=await ApiService.follow(uid,widget.targetId);if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('${d['message']}')));await load();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$e')));}}@override Widget build(BuildContext context){final profile=p??{};final pic=ApiService.imageUrl(profile['profile_picture_url']?.toString());return Scaffold(appBar:AppBar(title:const Text('Profile')),body:loading?const Center(child:CircularProgressIndicator()):ListView(padding:const EdgeInsets.all(16),children:[Card(child:Padding(padding:const EdgeInsets.all(22),child:Column(children:[CircleAvatar(radius:48,backgroundImage:pic.isNotEmpty?NetworkImage(pic):null,child:pic.isEmpty?const Icon(Icons.person,size:48):null),const SizedBox(height:12),Text('${profile['full_name']??profile['unique_username']}',style:const TextStyle(fontSize:23,fontWeight:FontWeight.bold)),Text('@${profile['unique_username']??''}',style:const TextStyle(color:Colors.blueGrey)),const SizedBox(height:10),Text('${profile['bio']??''}',textAlign:TextAlign.center),const SizedBox(height:10),Text('${profile['followers_count']??0} followers · ${profile['following_count']??0} following'),if(widget.targetId!=uid)Wrap(spacing:10,children:[FilledButton.icon(onPressed:follow,icon:const Icon(Icons.person_add_alt_1),label:const Text('Follow')),OutlinedButton.icon(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>ChatScreen(user:widget.user,otherId:widget.targetId,otherName:'${profile['full_name']??profile['unique_username']}'))),icon:const Icon(Icons.chat_bubble_outline),label:const Text('Message'))])]))),Card(
+  child: Padding(
+    padding: const EdgeInsets.all(12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          padding: const EdgeInsets.all(11),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(icon, color: color, size: 23),
-        ),
-        const SizedBox(height: 9),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 21,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF172554),
+        const ListTile(
+          leading: Icon(Icons.auto_awesome),
+          title: Text(
+            'SkillSwap',
+            style: TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
-        const SizedBox(height: 5),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 11,
-            color: Color(0xFF64748B),
-          ),
-        ),
+        _detail('Skills I can teach', profile['teach_skill']),
+        _detail('Skills I want to learn', profile['learn_skill']),
       ],
+    ),
+  ),
+),
+if (profile['can_view_details'] == true)
+  Card(
+    child: Column(
+      children: [
+        _detail('Hometown', profile['hometown']),
+        _detail('School', profile['school']),
+        _detail('College', profile['college']),
+        _detail('Present address', profile['present_address']),
+        _detail('Date of birth', profile['date_of_birth']),
+      ],
+    ),
+  )
+else
+  const Card(
+    child: Padding(
+      padding: EdgeInsets.all(20),
+      child: Text(
+        'This is a private account. Follow request acceptance is required to view personal details.',
+      ),
+    ),
+  ),
+]));}Widget _detail(String l,dynamic v)=>ListTile(title:Text(l),subtitle:Text(v==null||'$v'.isEmpty?'Not shared':'$v'));}
+
+
+class SettingsScreen extends StatefulWidget {
+  final Map<String, dynamic> user;
+  final Future<void> Function() onLogout;
+
+  const SettingsScreen({
+    super.key,
+    required this.user,
+    required this.onLogout,
+  });
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  bool notifications = true;
+  bool online = true;
+  bool messagesEnabled = true;
+  bool requestsEnabled = true;
+  bool loading = true;
+  bool saving = false;
+
+  String allow = 'everyone';
+
+  String get uid => '${widget.user['userId']}';
+
+  bool readBool(dynamic value) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      return value == '1' || value.toLowerCase() == 'true';
+    }
+    return true;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    load();
+  }
+
+  Future<void> load() async {
+    try {
+      final d = await ApiService.getSettings(uid);
+      final s = Map<String, dynamic>.from(d['settings'] as Map);
+
+      if (!mounted) return;
+
+      setState(() {
+        notifications = readBool(s['notifications_enabled']);
+        online = readBool(s['show_online']);
+        messagesEnabled = readBool(s['messages_enabled']);
+        requestsEnabled = readBool(s['requests_enabled']);
+        allow = '${s['allow_messages'] ?? 'everyone'}';
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not load settings: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> save() async {
+    setState(() => saving = true);
+
+    try {
+      await ApiService.updateSettings(uid, {
+        'notifications_enabled': notifications,
+        'show_online': online,
+        'allow_messages': allow,
+        'messages_enabled': messagesEnabled,
+        'requests_enabled': requestsEnabled,
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Settings saved')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not save settings: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Settings & privacy')),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(14),
+              children: [
+                Card(
+                  child: Column(
+                    children: [
+                      const ListTile(
+                        leading: Icon(Icons.security, color: brand),
+                        title: Text(
+                          'Privacy and account',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          'Control how people interact with you.',
+                        ),
+                      ),
+                      SwitchListTile(
+                        value: notifications,
+                        onChanged: (v) =>
+                            setState(() => notifications = v),
+                        title: const Text('Notifications'),
+                        subtitle: const Text(
+                          'Master switch for in-app notifications',
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      SwitchListTile(
+                        value: requestsEnabled,
+                        onChanged: (v) =>
+                            setState(() => requestsEnabled = v),
+                        title: const Text('Follow request notifications'),
+                        subtitle: const Text(
+                          'Get notified when someone sends you a follow request',
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      SwitchListTile(
+                        value: messagesEnabled,
+                        onChanged: (v) =>
+                            setState(() => messagesEnabled = v),
+                        title: const Text('Message notifications'),
+                        subtitle: const Text(
+                          'Get notified when someone messages you',
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      SwitchListTile(
+                        value: online,
+                        onChanged: (v) => setState(() => online = v),
+                        title: const Text('Show online status'),
+                        subtitle: const Text(
+                          'Display your active status setting',
+                        ),
+                      ),
+                      ListTile(
+                        title: const Text('Who can message me?'),
+                        subtitle: const Text(
+                          'Choose who is allowed to start a conversation',
+                        ),
+                        trailing: DropdownButton<String>(
+                          value: allow,
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'everyone',
+                              child: Text('Everyone'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'followers',
+                              child: Text('Followers'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'none',
+                              child: Text('No one'),
+                            ),
+                          ],
+                          onChanged: (v) {
+                            setState(() => allow = v ?? 'everyone');
+                          },
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: FilledButton(
+                          onPressed: saving ? null : save,
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size.fromHeight(48),
+                          ),
+                          child: Text(
+                            saving ? 'Saving...' : 'Save settings',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Card(
+                  child: Column(
+                    children: [
+                      const ListTile(
+                        leading: Icon(
+                          Icons.manage_accounts,
+                          color: brand,
+                        ),
+                        title: Text('Account'),
+                        subtitle: Text(
+                          'Profile details, profile picture and Public/Private '
+                          'setting are available under Profile → Edit profile.',
+                        ),
+                      ),
+                      const ListTile(
+                        leading: Icon(Icons.lock_outline),
+                        title: Text('Account security'),
+                        subtitle: Text(
+                          'Use a strong unique password. Secure token-based '
+                          'sign-in is a future hardening task.',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                FilledButton.tonalIcon(
+                  onPressed: widget.onLogout,
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Log out'),
+                ),
+              ],
+            ),
     );
   }
 }
 
- // ==================== SEARCH SCREEN ====================
 
-class SearchScreen extends StatefulWidget {
-  const SearchScreen({super.key});
+class SkillSearchScreen extends StatefulWidget {
+  final Map<String, dynamic> user;
+
+  const SkillSearchScreen({
+    super.key,
+    required this.user,
+  });
 
   @override
-  State<SearchScreen> createState() => _SearchScreenState();
+  State<SkillSearchScreen> createState() =>
+      _SkillSearchScreenState();
 }
 
-class _SearchScreenState extends State<SearchScreen> {
-  final TextEditingController _searchController =
+class _SkillSearchScreenState
+    extends State<SkillSearchScreen> {
+  final TextEditingController searchController =
       TextEditingController();
 
   List<dynamic> skills = [];
-  bool isLoading = false;
+  bool loading = false;
   String? errorMessage;
-  String searchQuery = '';
 
   @override
   void initState() {
@@ -2098,32 +2608,35 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   void dispose() {
-    _searchController.dispose();
+    searchController.dispose();
     super.dispose();
   }
 
-  Future<void> loadSkills({String search = ''}) async {
+  Future<void> loadSkills() async {
     setState(() {
-      isLoading = true;
+      loading = true;
       errorMessage = null;
     });
 
     try {
-      final results = await ApiService.findSkills(search: search);
+      final result = await ApiService.findSkills(
+        search: searchController.text.trim(),
+      );
 
       if (!mounted) return;
 
       setState(() {
-        skills = results;
-        searchQuery = search;
-        isLoading = false;
+        skills = result;
+        loading = false;
       });
     } catch (e) {
       if (!mounted) return;
 
       setState(() {
-        errorMessage = e.toString().replaceFirst('Exception: ', '');
-        isLoading = false;
+        errorMessage = e
+            .toString()
+            .replaceFirst('Exception: ', '');
+        loading = false;
       });
     }
   }
@@ -2133,183 +2646,139 @@ class _SearchScreenState extends State<SearchScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Explore Skills'),
-        centerTitle: true,
       ),
       body: Column(
         children: [
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                TextField(
-                  controller: _searchController,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (value) {
-                    loadSkills(search: value.trim());
-                  },
-                  decoration: InputDecoration(
-                    labelText: 'Search skills',
-                    hintText: 'Python, English, Flutter...',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: IconButton(
-                      tooltip: 'Clear search',
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        _searchController.clear();
-                        loadSkills();
-                      },
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
+            child: TextField(
+              controller: searchController,
+              onSubmitted: (_) => loadSkills(),
+              decoration: InputDecoration(
+                hintText: 'Search skills...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: IconButton(
+                  onPressed: loadSkills,
+                  icon: const Icon(Icons.arrow_forward),
                 ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: isLoading
-                        ? null
-                        : () => loadSkills(
-                              search: _searchController.text.trim(),
-                            ),
-                    icon: const Icon(Icons.search),
-                    label: const Text('Search Skills'),
-                  ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ],
+              ),
             ),
           ),
           Expanded(
-            child: _buildResults(),
+            child: loading
+                ? const Center(
+                    child: CircularProgressIndicator(),
+                  )
+                : errorMessage != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Text(
+                            'Could not load skills:\n$errorMessage',
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      )
+                    : skills.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'No skills found. Try another keyword.',
+                            ),
+                          )
+                        : ListView.builder(
+                            itemCount: skills.length,
+                            itemBuilder: (context, index) {
+                              final skill =
+                                  Map<String, dynamic>.from(
+                                skills[index] as Map,
+                              );
+
+                              final name =
+                                  '${skill['name'] ?? 'Unnamed skill'}';
+                              final category =
+                                  '${skill['category_name'] ?? 'General'}';
+                              final description =
+                                  '${skill['description'] ?? ''}';
+
+                              return Card(
+                                margin:
+                                    const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 6,
+                                ),
+                                child: ListTile(
+                                  leading: const CircleAvatar(
+                                    child: Icon(Icons.school),
+                                  ),
+                                  title: Text(
+                                    name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    'Category: $category'
+                                    '${description.isNotEmpty ? '\n$description' : ''}',
+                                  ),
+                                  isThreeLine:
+                                      description.isNotEmpty,
+                                ),
+                              );
+                            },
+                          ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildResults() {
-    if (isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
-    }
+class NotificationsScreen extends StatelessWidget {
+  final Map<String, dynamic> user;
 
-    if (errorMessage != null) {
-      return Center(
+  const NotificationsScreen({
+    super.key,
+    required this.user,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Notifications'),
+      ),
+      body: const Center(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.cloud_off,
-                size: 52,
-                color: Colors.redAccent,
+              Icon(
+                Icons.notifications_none,
+                size: 60,
+                color: brand,
               ),
-              const SizedBox(height: 12),
-              const Text(
-                'Could not load skills',
+              SizedBox(height: 12),
+              Text(
+                'Notifications',
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Text(
-                errorMessage!,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: () => loadSkills(
-                  search: _searchController.text.trim(),
-                ),
-                icon: const Icon(Icons.refresh),
-                label: const Text('Try Again'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (skills.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.search_off,
-                size: 58,
-                color: Colors.grey,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                searchQuery.isEmpty
-                    ? 'No skills available yet'
-                    : 'No skills found for "$searchQuery"',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 17),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Try another keyword.',
+                'Your notification feed will appear here '
+                'after the backend is connected.',
                 textAlign: TextAlign.center,
               ),
             ],
           ),
         ),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      itemCount: skills.length,
-      itemBuilder: (context, index) {
-        final skill = skills[index] as Map<String, dynamic>;
-        final name = (skill['name'] ?? 'Unnamed skill').toString();
-        final category = (
-          skill['category_name'] ??
-          skill['category'] ??
-          'General'
-        ).toString();
-        final description =
-            (skill['description'] ?? '').toString();
-
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: ListTile(
-            contentPadding: const EdgeInsets.all(12),
-            leading: CircleAvatar(
-              backgroundColor: Colors.indigo.withValues(alpha: 0.12),
-              child: const Icon(
-                Icons.auto_stories,
-                color: Colors.indigo,
-              ),
-            ),
-            title: Text(
-              name,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Category: $category'),
-                  if (description.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(description),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        );
-      },
+      ),
     );
   }
 }
