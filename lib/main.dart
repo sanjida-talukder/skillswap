@@ -2288,6 +2288,10 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
     profile['learn_skill'] ?? widget.user['learnSkill'],
   ),
 ]),
+RatingSection(
+  targetUserId: uid,
+  currentUserId: uid,
+),
 
           const SizedBox(height: 8),
           OutlinedButton.icon(onPressed: widget.onLogout, icon: const Icon(Icons.logout), label: const Text('Log out')),
@@ -2301,7 +2305,155 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
   Widget _section(String title, IconData icon, List<Widget> children) => Card(child: Padding(padding: const EdgeInsets.all(8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [ListTile(leading: Icon(icon, color: brand), title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)), dense: true), ...children])));
 }
 
-class PublicProfileScreen extends StatefulWidget {final String targetId;final Map<String,dynamic> user;const PublicProfileScreen({super.key,required this.targetId,required this.user});@override State<PublicProfileScreen> createState()=>_PublicProfileScreenState();}
+class PublicProfileScreen extends StatefulWidget {
+final String targetId;
+final Map<String,dynamic> user;
+const PublicProfileScreen({super.key,required this.targetId,required this.user});
+@override State<PublicProfileScreen> createState()=>_PublicProfileScreenState();
+}
+
+
+class RatingSection extends StatefulWidget {
+  final String targetUserId;
+  final String currentUserId;
+
+  const RatingSection({
+    super.key,
+    required this.targetUserId,
+    required this.currentUserId,
+  });
+
+  @override
+  State<RatingSection> createState() => _RatingSectionState();
+}
+
+class _RatingSectionState extends State<RatingSection> {
+  Map<String, dynamic> data = {};
+  final reviewController = TextEditingController();
+  int selectedRating = 0;
+  bool loading = true;
+  bool submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    loadRatings();
+  }
+
+  Future<void> loadRatings() async {
+    try {
+      final result = await ApiService.getRatings(widget.targetUserId);
+      if (mounted) setState(() => data = result);
+    } catch (_) {
+      // Keep the section available if ratings cannot load.
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> submit() async {
+    if (selectedRating == 0) return;
+
+    setState(() => submitting = true);
+    try {
+      await ApiService.submitRating(
+        raterId: widget.currentUserId,
+        ratedUserId: widget.targetUserId,
+        rating: selectedRating,
+        review: reviewController.text.trim(),
+      );
+
+      reviewController.clear();
+      setState(() => selectedRating = 0);
+      await loadRatings();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Review submitted successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => submitting = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    reviewController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reviews = data['reviews'] as List? ?? [];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Ratings & Reviews',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            if (loading)
+              const CircularProgressIndicator()
+            else ...[
+              Text(
+                '${data['average_rating'] ?? 0} / 5  ⭐  (${data['count'] ?? 0} reviews)',
+              ),
+              if (widget.targetUserId != widget.currentUserId) ...[
+                const SizedBox(height: 12),
+                const Text('Rate this user'),
+                Row(
+                  children: List.generate(
+                    5,
+                    (i) => IconButton(
+                      onPressed: () => setState(() => selectedRating = i + 1),
+                      icon: Icon(
+                        i < selectedRating ? Icons.star : Icons.star_border,
+                        color: Colors.amber,
+                      ),
+                    ),
+                  ),
+                ),
+                TextField(
+                  controller: reviewController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Write a review',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                FilledButton(
+                  onPressed: submitting || selectedRating == 0 ? null : submit,
+                  child: Text(submitting ? 'Submitting...' : 'Submit review'),
+                ),
+              ],
+              const Divider(),
+              ...reviews.map((r) => ListTile(
+                leading: const Icon(Icons.person),
+                title: Text('${r['reviewer_username'] ?? 'User'}'),
+                subtitle: Text('${r['review'] ?? ''}'),
+                trailing: Text('⭐ ${r['rating']}'),
+              )),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _PublicProfileScreenState extends State<PublicProfileScreen>{Map<String,dynamic>? p;bool loading=true;String get uid=>'${widget.user['userId']}';@override void initState(){super.initState();load();}Future<void> load()async{try{final d=await ApiService.getPublicProfile(widget.targetId,uid);if(mounted)setState(()=>p=Map<String,dynamic>.from(d['profile'] as Map));}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$e')));}finally{if(mounted)setState(()=>loading=false);}}Future<void> follow()async{try{final d=await ApiService.follow(uid,widget.targetId);if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('${d['message']}')));await load();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$e')));}}@override Widget build(BuildContext context){final profile=p??{};final pic=ApiService.imageUrl(profile['profile_picture_url']?.toString());return Scaffold(appBar:AppBar(title:const Text('Profile')),body:loading?const Center(child:CircularProgressIndicator()):ListView(padding:const EdgeInsets.all(16),children:[Card(child:Padding(padding:const EdgeInsets.all(22),child:Column(children:[CircleAvatar(radius:48,backgroundImage:pic.isNotEmpty?NetworkImage(pic):null,child:pic.isEmpty?const Icon(Icons.person,size:48):null),const SizedBox(height:12),Text('${profile['full_name']??profile['unique_username']}',style:const TextStyle(fontSize:23,fontWeight:FontWeight.bold)),Text('@${profile['unique_username']??''}',style:const TextStyle(color:Colors.blueGrey)),const SizedBox(height:10),Text('${profile['bio']??''}',textAlign:TextAlign.center),const SizedBox(height:10),Text('${profile['followers_count']??0} followers · ${profile['following_count']??0} following'),if(widget.targetId!=uid)Wrap(spacing:10,children:[FilledButton.icon(onPressed:follow,icon:const Icon(Icons.person_add_alt_1),label:const Text('Follow')),OutlinedButton.icon(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>ChatScreen(user:widget.user,otherId:widget.targetId,otherName:'${profile['full_name']??profile['unique_username']}'))),icon:const Icon(Icons.chat_bubble_outline),label:const Text('Message'))])]))),Card(
   child: Padding(
     padding: const EdgeInsets.all(12),
@@ -2341,6 +2493,10 @@ else
         'This is a private account. Follow request acceptance is required to view personal details.',
       ),
     ),
+  ),
+  RatingSection(
+    targetUserId: widget.targetId,
+    currentUserId: uid,
   ),
 ]));}Widget _detail(String l,dynamic v)=>ListTile(title:Text(l),subtitle:Text(v==null||'$v'.isEmpty?'Not shared':'$v'));}
 
