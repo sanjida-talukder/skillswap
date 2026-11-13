@@ -899,7 +899,21 @@ class PostCard extends StatelessWidget {
     this.onEdit,
     this.onDelete,
   });
-  @override Widget build(BuildContext context){final pic=ApiService.imageUrl(post['profile_picture_url']?.toString());final img=ApiService.imageUrl(post['image_url']?.toString());return Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Row(children:[GestureDetector(onTap:onProfile,child:CircleAvatar(backgroundImage:pic.isNotEmpty?NetworkImage(pic):null,child:pic.isEmpty?const Icon(Icons.person):null)),const SizedBox(width:10),Expanded(child:InkWell(onTap:onProfile,child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('${post['full_name']??post['unique_username']??'SkillSwap user'}',style:const TextStyle(fontWeight:FontWeight.bold)),Text('@${post['unique_username']??'user'} · ${_date(post['created_at'])}',style:Theme.of(context).textTheme.bodySmall)]))),
+  @override Widget build(BuildContext context){final pic=ApiService.imageUrl(post['profile_picture_url']?.toString());final img=ApiService.imageUrl(post['image_url']?.toString());
+      return TweenAnimationBuilder<double>(
+        tween: Tween<double>(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeOutCubic,
+        builder: (context, value, child) {
+          return Opacity(
+            opacity: value,
+            child: Transform.translate(
+              offset: Offset(0, 14 * (1 - value)),
+              child: child,
+            ),
+          );
+        },
+        child: Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Row(children:[GestureDetector(onTap:onProfile,child:CircleAvatar(backgroundImage:pic.isNotEmpty?NetworkImage(pic):null,child:pic.isEmpty?const Icon(Icons.person):null)),const SizedBox(width:10),Expanded(child:InkWell(onTap:onProfile,child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('${post['full_name']??post['unique_username']??'SkillSwap user'}',style:const TextStyle(fontWeight:FontWeight.bold)),Text('@${post['unique_username']??'user'} · ${_date(post['created_at'])}',style:Theme.of(context).textTheme.bodySmall)]))),
   PopupMenuButton<String>(
     icon: const Icon(Icons.more_horiz),
     onSelected: (value) {
@@ -944,33 +958,65 @@ else if (img.isNotEmpty)
 
     Row(
       children: [
-        InkWell(
-          onTap: () => onReact('like'),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              '👍 ${post['like_count'] ?? 0}',
-              style: TextStyle(
+        AnimatedScale(
+          scale: post['my_reaction'] == 'like' ? 1.18 : 1.0,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.elasticOut,
+          child: InkWell(
+            onTap: () => onReact('like'),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 8,
+              ),
+              decoration: BoxDecoration(
                 color: post['my_reaction'] == 'like'
-                    ? Colors.blue
-                    : null,
-                fontWeight: FontWeight.w500,
+                    ? Colors.blue.withValues(alpha: 0.15)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '👍 ${post['like_count'] ?? 0}',
+                style: TextStyle(
+                  color: post['my_reaction'] == 'like'
+                      ? Colors.blue
+                      : null,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
         ),
         const SizedBox(width: 16),
-        InkWell(
-          onTap: () => onReact('dislike'),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              '👎 ${post['dislike_count'] ?? 0}',
-              style: TextStyle(
+        AnimatedScale(
+          scale: post['my_reaction'] == 'dislike' ? 1.18 : 1.0,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.elasticOut,
+          child: InkWell(
+            onTap: () => onReact('dislike'),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 8,
+              ),
+              decoration: BoxDecoration(
                 color: post['my_reaction'] == 'dislike'
-                    ? Colors.red
-                    : null,
-                fontWeight: FontWeight.w500,
+                    ? Colors.red.withValues(alpha: 0.15)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '👎 ${post['dislike_count'] ?? 0}',
+                style: TextStyle(
+                  color: post['my_reaction'] == 'dislike'
+                      ? Colors.red
+                      : null,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
@@ -987,7 +1033,9 @@ else if (img.isNotEmpty)
         ),
       ],
     ),
-  ])));}
+    ]))),
+  );
+  }
   static String _date(dynamic v){if(v==null)return 'now';try{final d=DateTime.parse(v.toString()).toLocal();return '${d.day}/${d.month}/${d.year}';}catch(_){return '';}}
 }
 
