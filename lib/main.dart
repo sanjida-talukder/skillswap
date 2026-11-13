@@ -3,10 +3,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
 import 'dart:async';
 import 'package:web_socket_channel/io.dart';
+import 'package:http/http.dart' as http;
 
 const Color brand = Color(0xFF0F766E);
 const Color ink = Color(0xFF172554);
@@ -622,9 +625,14 @@ class _FeedScreenState extends State<FeedScreen>{
             });
           } catch (_) {}
         },
-        onError: (_) {},
+        onError: (e) {
+          debugPrint('FEED SOCKET STREAM ERROR: $e');
+          },
+
       );
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('FEED SOCKET ERROR: $e');
+    }
   }
 
   @override
@@ -2144,6 +2152,12 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
     ),
 };
     String privacy = '${profile['privacy'] ?? 'public'}';
+    double? selectedLatitude =
+        double.tryParse('${profile['latitude'] ?? ''}');
+    double? selectedLongitude =
+        double.tryParse('${profile['longitude'] ?? ''}');
+    String selectedLocationName =
+        '${profile['selected_location'] ?? ''}';
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -2157,6 +2171,41 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                 _editField(fields['bio']!, 'Bio', max: 3),
                 _editField(fields['hometown']!, 'Hometown'),
                 _editField(fields['present_address']!, 'Present address'),
+                                const SizedBox(height: 8),
+                                OutlinedButton.icon(
+                                  icon: const Icon(Icons.map_outlined),
+                                  label: const Text('Choose location on map'),
+                                  onPressed: () async {
+                                    final picked = await showDialog<MapPickedLocation>(
+                                      context: ctx,
+                                      builder: (_) => MapLocationPicker(
+                                        initialLocation:
+                                            selectedLatitude != null &&
+                                                    selectedLongitude != null
+                                                ? LatLng(
+                                                    selectedLatitude!,
+                                                    selectedLongitude!,
+                                                  )
+                                                : LatLng(23.8103, 90.4125),
+                                      ),
+                                    );
+
+                                    if (picked != null) {
+                                      setDialog(() {
+                                        selectedLatitude = picked.coordinates.latitude;
+                                        selectedLongitude = picked.coordinates.longitude;
+                                        selectedLocationName = picked.name;
+                                      });
+                                    }
+                                  },
+                                ),
+                                if (selectedLatitude != null &&
+                                    selectedLongitude != null)
+                                  Text(
+                                    'Location selected: ${selectedLatitude!.toStringAsFixed(5)}, ${selectedLongitude!.toStringAsFixed(5)}',
+                                  ),
+                                if (selectedLocationName.isNotEmpty)
+                                  Text('Selected place: $selectedLocationName'),
                 _editField(fields['school']!, 'School'),
                 _editField(fields['college']!, 'College'),
                 TextFormField(
@@ -2208,6 +2257,9 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                 for (final e in fields.entries) e.key: e.value.text,
                 'privacy': privacy,
                 'profile_picture_url': '${profile['profile_picture_url'] ?? ''}',
+                'latitude': selectedLatitude,
+                'longitude': selectedLongitude,
+                'selected_location': selectedLocationName,
               }),
               child: const Text('Save'),
             ),
@@ -2271,6 +2323,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
           _section('About you', Icons.info_outline, [
             _info(Icons.location_city, 'Hometown', profile['hometown']),
             _info(Icons.home_outlined, 'Present address', profile['present_address']),
+            _info(Icons.place_outlined, 'Selected map location', profile['selected_location']),
             _info(Icons.school_outlined, 'School', profile['school']),
             _info(Icons.account_balance_outlined, 'College', profile['college']),
             _info(Icons.cake_outlined, 'Date of birth', profile['date_of_birth']),
@@ -2938,3 +2991,314 @@ class NotificationsScreen extends StatelessWidget {
     );
   }
 }
+class MapPickedLocation {
+  final LatLng coordinates;
+  final String name;
+
+  const MapPickedLocation(this.coordinates, this.name);
+}
+class MapLocationPicker extends StatefulWidget {
+  final LatLng initialLocation;
+
+  const MapLocationPicker({
+    super.key,
+    required this.initialLocation,
+  });
+
+  @override
+  State<MapLocationPicker> createState() => _MapLocationPickerState();
+}
+
+class _MapLocationPickerState extends State<MapLocationPicker> {
+  late LatLng selectedLocation;
+  late final MapController mapController;
+
+  final searchController = TextEditingController();
+
+  String selectedPlaceName = 'Selected location';
+  List<dynamic> searchResults = [];
+  bool searching = false;
+  String? searchError;
+
+  @override
+  void initState() {
+    super.initState();
+    selectedLocation = widget.initialLocation;
+    mapController = MapController();
+    _reverseSearch(selectedLocation);
+  }
+
+  String _getPlaceName(Map<String, dynamic> p) {
+    final parts = [
+      p['name'],
+      p['district'],
+      p['city'],
+      p['state'],
+      p['country'],
+    ];
+
+    final names = <String>[];
+    for (final part in parts) {
+      final value = part?.toString().trim() ?? '';
+      if (value.isNotEmpty && !names.contains(value)) {
+        names.add(value);
+      }
+    }
+
+    return names.isEmpty ? 'Unknown location' : names.join(', ');
+  }
+
+  Future<void> searchPlaces() async {
+    final query = searchController.text.trim();
+    if (query.isEmpty) return;
+
+    setState(() {
+      searching = true;
+      searchError = null;
+      searchResults = [];
+    });
+
+    try {
+      final uri = Uri.https(
+        'photon.komoot.io',
+        '/api/',
+        {'q': query, 'limit': '6'},
+      );
+
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'User-Agent': 'SkillSwap/1.0',
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 12));
+
+      debugPrint('PLACE SEARCH STATUS: ${response.statusCode}');
+      debugPrint('PLACE SEARCH BODY: ${response.body}');
+      debugPrint('PLACE SEARCH STATUS: ${response.statusCode}');
+      debugPrint('PLACE SEARCH BODY: ${response.body}');
+
+      if (response.statusCode != 200) {
+        throw Exception('Search service unavailable');
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final features = data['features'] as List<dynamic>? ?? [];
+
+      if (!mounted) return;
+
+      setState(() {
+        searchResults = features;
+        if (features.isEmpty) {
+          searchError = 'No places found. Try another name.';
+        }
+      });
+        } catch (e) {
+          debugPrint('PLACE SEARCH ERROR: $e');
+          if (mounted) {
+            setState(() => searchError = 'Search error: $e');
+          }
+    } finally {
+      if (mounted) setState(() => searching = false);
+    }
+  }
+
+  void selectSearchResult(dynamic feature) {
+    final properties =
+        Map<String, dynamic>.from(feature['properties'] as Map);
+    final coordinates =
+        feature['geometry']['coordinates'] as List<dynamic>;
+
+    final point = LatLng(
+      (coordinates[1] as num).toDouble(),
+      (coordinates[0] as num).toDouble(),
+    );
+
+    setState(() {
+      selectedLocation = point;
+      selectedPlaceName = _getPlaceName(properties);
+      searchResults = [];
+      searchController.text = selectedPlaceName;
+    });
+
+    mapController.move(point, 15);
+  }
+
+  Future<void> _reverseSearch(LatLng point) async {
+    try {
+      final uri = Uri.https(
+        'photon.komoot.io',
+        '/reverse',
+        {
+          'lat': point.latitude.toString(),
+          'lon': point.longitude.toString(),
+        },
+      );
+
+      final response = await http.get(uri).timeout(
+        const Duration(seconds: 12),
+      );
+
+      if (response.statusCode != 200) return;
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final features = data['features'] as List<dynamic>? ?? [];
+
+      if (features.isEmpty || !mounted) return;
+
+      final properties =
+          Map<String, dynamic>.from(features.first['properties'] as Map);
+
+      setState(() {
+        selectedPlaceName = _getPlaceName(properties);
+      });
+    } catch (_) {
+      // Keep coordinates if reverse search is unavailable.
+    }
+  }
+
+  @override
+  void dispose() {
+    searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Choose your location'),
+      content: SizedBox(
+        width: 500,
+        height: 480,
+        child: Column(
+          children: [
+            TextField(
+              controller: searchController,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) => searchPlaces(),
+              decoration: InputDecoration(
+                hintText: 'Search city, area or place',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: IconButton(
+                  onPressed: searching ? null : searchPlaces,
+                  icon: searching
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.arrow_forward),
+                ),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+
+            if (searchError != null)
+              Padding(
+                padding: const EdgeInsets.all(6),
+                child: Text(
+                  searchError!,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+
+            if (searchResults.isNotEmpty)
+              SizedBox(
+                height: 115,
+                child: ListView.builder(
+                  itemCount: searchResults.length,
+                  itemBuilder: (context, index) {
+                    final feature = searchResults[index];
+                    final properties = Map<String, dynamic>.from(
+                      feature['properties'] as Map,
+                    );
+
+                    return ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.location_on_outlined),
+                      title: Text(_getPlaceName(properties)),
+                      onTap: () => selectSearchResult(feature),
+                    );
+                  },
+                ),
+              ),
+
+            Expanded(
+              child: FlutterMap(
+                mapController: mapController,
+                options: MapOptions(
+                  initialCenter: widget.initialLocation,
+                  initialZoom: 13,
+                  onTap: (tapPosition, point) {
+                    setState(() {
+                      selectedLocation = point;
+                      selectedPlaceName = 'Finding place...';
+                      searchResults = [];
+                    });
+                    _reverseSearch(point);
+                  },
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+                    maxZoom: 19,
+                  ),
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: selectedLocation,
+                        width: 45,
+                        height: 45,
+                        child: const Icon(
+                          Icons.location_pin,
+                          color: Colors.red,
+                          size: 45,
+                        ),
+                      ),
+                    ],
+                  ),
+                  RichAttributionWidget(
+                    attributions: [
+                      TextSourceAttribution(
+                        'Tiles © Esri — Sources: Esri, HERE, USGS, and others',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 8),
+            Text(
+              selectedPlaceName,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            Text(
+              'Lat: ${selectedLocation.latitude.toStringAsFixed(6)}'
+              ' | Lng: ${selectedLocation.longitude.toStringAsFixed(6)}',
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(
+            context,
+            MapPickedLocation(selectedLocation, selectedPlaceName),
+          ),
+          child: const Text('Select location'),
+        ),
+      ],
+    );
+  }
+}
+
