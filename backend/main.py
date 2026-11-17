@@ -26,6 +26,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from urllib.parse import urlparse
+import strawberry
+from strawberry.fastapi import GraphQLRouter
 
 load_dotenv()
 
@@ -1319,6 +1321,102 @@ def feed(user_id: str, limit: int = 20, offset: int = 0):
         return {"success":True,"posts":rows,"limit":limit,"offset":offset}
     finally:
         cur.close(); db.close()
+
+
+# ---------- GraphQL API ----------
+
+@strawberry.type
+class PostMediaType:
+    media_id: str
+    file_url: str
+    file_type: str
+
+
+@strawberry.type
+class PostType:
+    post_id: str
+    user_id: str
+    content: str
+    image_url: str
+    youtube_url: str
+    privacy: str
+    created_at: str
+    full_name: str
+    unique_username: str
+    profile_picture_url: str | None
+    reaction_count: int
+    like_count: int
+    dislike_count: int
+    comment_count: int
+    my_reaction: str | None
+    media: list[PostMediaType]
+
+
+@strawberry.type
+class FeedResultType:
+    success: bool
+    posts: list[PostType]
+    limit: int
+    offset: int
+
+
+@strawberry.type
+class Query:
+    @strawberry.field
+    def feed(
+        self,
+        user_id: str,
+        limit: int = 20,
+        offset: int = 0
+    ) -> FeedResultType:
+        result = feed(user_id, limit, offset)
+
+        posts = []
+        for p in result["posts"]:
+            media_items = [
+                PostMediaType(
+                    media_id=str(m["media_id"]),
+                    file_url=m.get("file_url") or "",
+                    file_type=m.get("file_type") or ""
+                )
+                for m in p.get("media", [])
+            ]
+
+            posts.append(
+                PostType(
+                    post_id=str(p["post_id"]),
+                    user_id=str(p["user_id"]),
+                    content=p.get("content") or "",
+                    image_url=p.get("image_url") or "",
+                    youtube_url=p.get("youtube_url") or "",
+                    privacy=p.get("privacy") or "",
+                    created_at=p.get("created_at") or "",
+                    full_name=p.get("full_name") or "",
+                    unique_username=p.get("unique_username") or "",
+                    profile_picture_url=p.get("profile_picture_url"),
+                    reaction_count=int(p.get("reaction_count") or 0),
+                    like_count=int(p.get("like_count") or 0),
+                    dislike_count=int(p.get("dislike_count") or 0),
+                    comment_count=int(p.get("comment_count") or 0),
+                    my_reaction=p.get("my_reaction"),
+                    media=media_items
+                )
+            )
+
+        return FeedResultType(
+            success=result["success"],
+            posts=posts,
+            limit=result["limit"],
+            offset=result["offset"]
+        )
+
+
+graphql_schema = strawberry.Schema(query=Query)
+graphql_app = GraphQLRouter(graphql_schema)
+app.include_router(graphql_app, prefix="/graphql")
+
+# ---------- End GraphQL API ----------
+
 
 @app.post("/social/posts")
 def create_post(data: PostCreate):
