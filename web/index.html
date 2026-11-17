@@ -31,6 +31,7 @@
 
   <title>skillswap</title>
   <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles/main.css">
 </head>
 <body>
   <!--
@@ -41,6 +42,25 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
+  <div id="app-loading">
+    <div class="loading-card">
+      <div class="logo">
+        <span class="logo-letter">S</span>
+        <span class="logo-swap">↔</span>
+      </div>
+      <div class="loading-text">SkillSwap</div>
+      <div class="tagline">LEARN • SHARE • GROW</div>
+      <div class="spinner"></div>
+    </div>
+  </div>
   <script src="flutter_bootstrap.js" async></script>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      const loader = document.getElementById('app-loading');
+      if (loader) {
+        loader.remove();
+      }
+    });
+  </script>
 </body>
 </html>

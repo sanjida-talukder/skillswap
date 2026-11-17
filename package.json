@@ -1,0 +1,28 @@
+{
+  "name": "skillswap",
+  "version": "1.0.0",
+  "description": "A new Flutter project.",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sanjida-talukder/skillswap.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/sanjida-talukder/skillswap/issues"
+  },
+  "homepage": "https://github.com/sanjida-talukder/skillswap#readme",
+  "devDependencies": {
+    "sass": "^1.108.2"
+  }
+}
