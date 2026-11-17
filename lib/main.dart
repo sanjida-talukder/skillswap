@@ -10,6 +10,7 @@ import 'api_service.dart';
 import 'dart:async';
 import 'package:web_socket_channel/io.dart';
 import 'package:http/http.dart' as http;
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 const Color brand = Color(0xFF0F766E);
 const Color ink = Color(0xFF172554);
@@ -572,6 +573,7 @@ class _SocialHomeState extends State<SocialHome> {
 class FeedScreen extends StatefulWidget { final Map<String,dynamic> user; final VoidCallback onChanged; const FeedScreen({super.key,required this.user,required this.onChanged}); @override State<FeedScreen> createState()=>_FeedScreenState(); }
 class _FeedScreenState extends State<FeedScreen>{
   final composer = TextEditingController();
+  final youtubeController = TextEditingController();
   List<dynamic> posts = [];
   bool loading = true, sending = false;
   String? error;
@@ -640,6 +642,7 @@ class _FeedScreenState extends State<FeedScreen>{
     _feedSocketSubscription?.cancel();
     _feedSocket?.sink.close();
     composer.dispose();
+    youtubeController.dispose();
     super.dispose();
   }
   Future<void> load() async { setState(() => loading = true); try { final d = await ApiService.getFeed(uid); if (!mounted) return; setState(() { posts = (d['posts'] as List?) ?? []; loading = false; error = null; }); } catch (e) { if (!mounted) return; setState(() { loading = false; error = e.toString(); }); } }
@@ -689,7 +692,13 @@ class _FeedScreenState extends State<FeedScreen>{
       }
     }
   Future<void> publish() async {
-    if (composer.text.trim().isEmpty && images.isEmpty) return;
+    final youtubeUrl = youtubeController.text.trim();
+
+    if (composer.text.trim().isEmpty &&
+        images.isEmpty &&
+        youtubeUrl.isEmpty) {
+      return;
+    }
 
     setState(() => sending = true);
 
@@ -700,6 +709,7 @@ class _FeedScreenState extends State<FeedScreen>{
         uid,
         composer.text.trim(),
         imageUrl: imageUrl,
+        youtubeUrl: youtubeUrl,
         privacy: postPrivacy,
       );
 
@@ -727,6 +737,7 @@ class _FeedScreenState extends State<FeedScreen>{
       }
 
       composer.clear();
+      youtubeController.clear();
 
       if (mounted) {
         setState(() {
@@ -841,7 +852,19 @@ class _FeedScreenState extends State<FeedScreen>{
   }
   void _snack(String s)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(s.replaceFirst('Exception: ',''))));
   @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('SkillSwap',style:TextStyle(fontWeight:FontWeight.bold,color:brand)),actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),body:RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(14,8,14,24),children:[
-    Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Row(children:[const CircleAvatar(child:Icon(Icons.person)),const SizedBox(width:10),Expanded(child:Text('What would you like to share, ${widget.user['name']??'learner'}?',style:const TextStyle(fontWeight:FontWeight.w600)))]),const SizedBox(height:12),TextField(controller:composer,minLines:2,maxLines:5,maxLength:5000,decoration:const InputDecoration(hintText:'Share a skill, question, progress or idea...',border:OutlineInputBorder())),
+    Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Row(children:[const CircleAvatar(child:Icon(Icons.person)),const SizedBox(width:10),Expanded(child:Text('What would you like to share, ${widget.user['name']??'learner'}?',style:const TextStyle(fontWeight:FontWeight.w600)))]),const SizedBox(height:12),
+    TextField(controller:composer,minLines:2,maxLines:5,maxLength:5000,decoration:const InputDecoration(hintText:'Share a skill, question, progress or idea...',border:OutlineInputBorder())),
+    const SizedBox(height: 10),
+    TextField(
+      controller: youtubeController,
+      keyboardType: TextInputType.url,
+      decoration: const InputDecoration(
+        hintText: 'Paste YouTube video link (optional)',
+        labelText: 'YouTube Video URL',
+        prefixIcon: Icon(Icons.play_circle_outline),
+        border: OutlineInputBorder(),
+      ),
+    ),
     const SizedBox(height: 10),
     DropdownButtonFormField<String>(
       initialValue: postPrivacy,
@@ -899,7 +922,10 @@ class PostCard extends StatelessWidget {
     this.onEdit,
     this.onDelete,
   });
-  @override Widget build(BuildContext context){final pic=ApiService.imageUrl(post['profile_picture_url']?.toString());final img=ApiService.imageUrl(post['image_url']?.toString());
+  @override Widget build(BuildContext context){
+  final pic=ApiService.imageUrl(post['profile_picture_url']?.toString());
+  final img=ApiService.imageUrl(post['image_url']?.toString());
+  final youtubeUrl = '${post['youtube_url'] ?? ''}'.trim();
       return TweenAnimationBuilder<double>(
         tween: Tween<double>(begin: 0, end: 1),
         duration: const Duration(milliseconds: 450),
@@ -938,7 +964,10 @@ class PostCard extends StatelessWidget {
   )
   ]),
   if('${post['content']??''}'.trim().isNotEmpty)Padding(padding:const EdgeInsets.symmetric(vertical:13),child:Text('${post['content']}',style:const TextStyle(fontSize:15,height:1.4))),
-
+  if (youtubeUrl.isNotEmpty) ...[
+    const SizedBox(height: 10),
+    YoutubeEmbeddedPlayer(url: youtubeUrl),
+  ],
 if (post['media'] is List && (post['media'] as List).isNotEmpty)
   _PostMediaGrid(
     media: (post['media'] as List)
@@ -3346,6 +3375,105 @@ class _MapLocationPickerState extends State<MapLocationPicker> {
           child: const Text('Select location'),
         ),
       ],
+    );
+  }
+}
+
+class YoutubeEmbeddedPlayer extends StatefulWidget {
+  final String url;
+
+  const YoutubeEmbeddedPlayer({
+    super.key,
+    required this.url,
+  });
+
+  @override
+  State<YoutubeEmbeddedPlayer> createState() =>
+      _YoutubeEmbeddedPlayerState();
+}
+
+class _YoutubeEmbeddedPlayerState
+    extends State<YoutubeEmbeddedPlayer> {
+  YoutubePlayerController? controller;
+  String? videoId;
+
+  String? extractVideoId(String url) {
+    try {
+      final uri = Uri.parse(url);
+      final host = uri.host.toLowerCase();
+
+      if (host == 'youtu.be') {
+        return uri.pathSegments.isNotEmpty
+            ? uri.pathSegments.first
+            : null;
+      }
+
+      if (host == 'youtube.com' ||
+          host == 'www.youtube.com' ||
+          host == 'm.youtube.com' ||
+          host == 'youtube-nocookie.com' ||
+          host == 'www.youtube-nocookie.com') {
+        if (uri.path == '/watch') {
+          return uri.queryParameters['v'];
+        }
+
+        if (uri.pathSegments.length >= 2 &&
+            ['embed', 'shorts', 'live']
+                .contains(uri.pathSegments.first)) {
+          return uri.pathSegments[1];
+        }
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
+  void initializePlayer() {
+    videoId = extractVideoId(widget.url);
+
+    if (videoId != null && videoId!.length == 11) {
+      controller = YoutubePlayerController.fromVideoId(
+        videoId: videoId!,
+        autoPlay: false,
+      );
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    initializePlayer();
+  }
+
+  @override
+  void didUpdateWidget(covariant YoutubeEmbeddedPlayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.url != widget.url) {
+      controller?.close();
+      controller = null;
+      initializePlayer();
+    }
+  }
+
+  @override
+  void dispose() {
+    controller?.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (controller == null) {
+      return const Text('Invalid YouTube video link');
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: YoutubePlayer(
+        controller: controller!,
+        aspectRatio: 16 / 9,
+      ),
     );
   }
 }

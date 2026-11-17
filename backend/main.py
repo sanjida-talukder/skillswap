@@ -25,6 +25,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from urllib.parse import urlparse
 
 load_dotenv()
 
@@ -1280,6 +1281,7 @@ class PostCreate(BaseModel):
     user_id: str
     content: str = Field(default="", max_length=5000)
     image_url: str = ""
+    youtube_url: str = Field(default="", max_length=500)
     privacy: str = "public"
 
 @app.get("/social/feed")
@@ -1288,7 +1290,7 @@ def feed(user_id: str, limit: int = 20, offset: int = 0):
     db = db_connect(); cur = db.cursor(dictionary=True)
     try:
         require_user(cur,user_id)
-        cur.execute("""SELECT p.post_id,p.user_id,p.content,p.image_url,p.privacy,p.created_at,u.full_name,u.unique_username,sp.profile_picture_url,
+        cur.execute("""SELECT p.post_id,p.user_id,p.content,p.image_url,p.youtube_url,p.privacy,p.created_at,u.full_name,u.unique_username,sp.profile_picture_url,
           (SELECT COUNT(*) FROM social_post_reactions r WHERE r.post_id=p.post_id) AS reaction_count,
           (SELECT COUNT(*) FROM social_post_reactions r WHERE r.post_id=p.post_id AND r.reaction='like') AS like_count,
           (SELECT COUNT(*) FROM social_post_reactions r WHERE r.post_id=p.post_id AND r.reaction='dislike') AS dislike_count,
@@ -1320,18 +1322,73 @@ def feed(user_id: str, limit: int = 20, offset: int = 0):
 
 @app.post("/social/posts")
 def create_post(data: PostCreate):
-    content=data.content.strip()
+    content = data.content.strip()
+    image_url = data.image_url.strip()
+    youtube_url = data.youtube_url.strip()
+
     if data.privacy not in {"public", "followers", "private"}:
         raise HTTPException(status_code=400, detail="Invalid post privacy")
-    if not content and not data.image_url.strip(): raise HTTPException(status_code=400,detail="Write something or attach an image")
-    db=db_connect(); cur=db.cursor(dictionary=True)
+
+    if youtube_url:
+        parsed = urlparse(youtube_url)
+        allowed_hosts = {
+            "youtube.com",
+            "www.youtube.com",
+            "m.youtube.com",
+            "youtu.be",
+            "youtube-nocookie.com",
+            "www.youtube-nocookie.com",
+        }
+
+        if parsed.scheme not in {"http", "https"} or parsed.hostname not in allowed_hosts:
+            raise HTTPException(
+                status_code=400,
+                detail="Please provide a valid YouTube URL"
+            )
+
+    if not content and not image_url and not youtube_url:
+        raise HTTPException(
+            status_code=400,
+            detail="Write something or attach media"
+        )
+
+    db = db_connect()
+    cur = db.cursor(dictionary=True)
+
     try:
-        require_user(cur,data.user_id)
-        post_id=str(uuid.uuid4())
-        cur.execute("INSERT INTO social_posts (post_id,user_id,content,image_url,privacy) VALUES (%s,%s,%s,%s,%s)",(post_id,data.user_id,content,data.image_url.strip() or None,data.privacy))
-        db.commit(); return {"success":True,"post_id":post_id,"message":"Post published"}
-    except Exception: db.rollback(); raise
-    finally: cur.close(); db.close()
+        require_user(cur, data.user_id)
+        post_id = str(uuid.uuid4())
+
+        cur.execute(
+            """
+            INSERT INTO social_posts
+            (post_id, user_id, content, image_url, youtube_url, privacy)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (
+                post_id,
+                data.user_id,
+                content,
+                image_url or None,
+                youtube_url or None,
+                data.privacy,
+            ),
+        )
+
+        db.commit()
+        return {
+            "success": True,
+            "post_id": post_id,
+            "message": "Post published",
+        }
+
+    except Exception:
+        db.rollback()
+        raise
+
+    finally:
+        cur.close()
+        db.close()
 
 class PostUpdate(BaseModel):
     user_id: str
